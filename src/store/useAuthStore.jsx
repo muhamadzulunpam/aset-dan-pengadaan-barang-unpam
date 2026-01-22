@@ -97,7 +97,6 @@ export const useAuthStore = create(
 
       // ✅ Initialize auth
       initializeAuth: async () => {
-        console.log('🔄 Initializing auth...');
         set({ loading: true });
         
         try {
@@ -105,7 +104,6 @@ export const useAuthStore = create(
           if (authStorage) {
             const authData = JSON.parse(authStorage);
             if (authData.state?.user) {
-              console.log('📦 Found user in storage, validating...');
               // Coba validasi token dengan mengambil data user terbaru
               try {
                 await api2.get("/sanctum/csrf-cookie");
@@ -115,7 +113,6 @@ export const useAuthStore = create(
                   loading: false,
                   isInitialized: true
                 });
-                console.log('✅ Auth initialized with valid token');
                 return;
               } catch (err) {
                 console.warn('❌ Token validation failed:', err);
@@ -128,7 +125,6 @@ export const useAuthStore = create(
             loading: false, 
             isInitialized: true 
           });
-          console.log('✅ Auth initialized - no valid session');
         } catch (err) {
           console.error('❌ Auth initialization error:', err);
           set({ 

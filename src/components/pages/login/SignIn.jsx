@@ -134,11 +134,6 @@ const SignIn = () => {
             )}
           </button>
 
-          <div className="text-center">
-            <p className="text-sm text-slate-600">
-              Gunakan email dan password dari database Anda
-            </p>
-          </div>
         </form>
       </div>
     </div>

@@ -19,37 +19,34 @@ const Header = ({ setSidebarOpen }) => {
   const [darkMode, setDarkMode] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  
+
   // Ambil user data dari auth store
   const { user, logout } = useAuthStore();
-  
-  // Debug: Lihat struktur user data
-  console.log("User data in Header:", user);
-  
+
   // Fungsi untuk mengakses user data dengan structure yang benar
   const getUserData = () => {
     if (!user) return null;
-    
+
     // Coba berbagai struktur yang mungkin
     if (user.data?.user) {
       return user.data.user; // Struktur: {data: {user: {...}}}
     } else if (user.user) {
       return user.user; // Struktur: {user: {...}}
     }
-    
+
     return user; // Struktur langsung
   };
-  
+
   const currentUser = getUserData();
-  
+
   // Fungsi untuk mendapatkan initial dari nama
   const getInitials = () => {
     if (!currentUser?.name) return "U";
-    
+
     return currentUser.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
+      .split(" ")
+      .map((word) => word[0])
+      .join("")
       .toUpperCase()
       .slice(0, 2);
   };
@@ -57,32 +54,34 @@ const Header = ({ setSidebarOpen }) => {
   // Fungsi untuk mendapatkan role display
   const getRoleDisplay = () => {
     if (!currentUser) return "Guest";
-    
+
     // Coba ambil role dari berbagai sumber
     if (currentUser.role) {
-      return currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+      return (
+        currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)
+      );
     }
-    
+
     // Jika ada abilities di root user object
     if (user.abilities) {
-      if (user.abilities.includes('procurements.create')) {
+      if (user.abilities.includes("procurements.create")) {
         return "Procurement Staff";
       }
-      if (user.abilities.includes('admin.dashboard')) {
+      if (user.abilities.includes("admin.dashboard")) {
         return "Administrator";
       }
     }
-    
+
     // Jika ada abilities di currentUser
     if (currentUser.abilities) {
-      if (currentUser.abilities.includes('procurements.create')) {
+      if (currentUser.abilities.includes("procurements.create")) {
         return "Procurement Staff";
       }
-      if (currentUser.abilities.includes('admin.dashboard')) {
+      if (currentUser.abilities.includes("admin.dashboard")) {
         return "Administrator";
       }
     }
-    
+
     return "Staff";
   };
 
@@ -166,34 +165,6 @@ const Header = ({ setSidebarOpen }) => {
 
         {/* Right Section */}
         <div className="flex items-center space-x-4">
-          {/* Search */}
-          <div className="relative hidden md:block">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search anything..."
-              className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 w-64"
-            />
-          </div>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors duration-300"
-          >
-            {darkMode ? (
-              <Sun className="w-5 h-5" />
-            ) : (
-              <Moon className="w-5 h-5" />
-            )}
-          </button>
-
-          {/* Notifications */}
-          <button className="relative p-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors duration-300">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-
           {/* User Profile */}
           <div className="relative">
             <button
@@ -209,9 +180,7 @@ const Header = ({ setSidebarOpen }) => {
                 <p className="text-sm font-semibold text-slate-900">
                   {currentUser?.name || "User"}
                 </p>
-                <p className="text-xs text-slate-500">
-                  Administrator
-                </p>
+                <p className="text-xs text-slate-500">Administrator</p>
               </div>
               <ChevronDown
                 className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
@@ -229,14 +198,16 @@ const Header = ({ setSidebarOpen }) => {
                       <p className="text-sm font-semibold text-slate-900">
                         {currentUser.name}
                       </p>
-                      <p className="text-sm text-slate-500">{currentUser.email}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-sm text-slate-500">
+                        {currentUser.email}
+                      </p>
+                      {/* <p className="text-xs text-slate-400">
                         {getRoleDisplay()}
                         {currentUser.department && ` • ${currentUser.department}`}
                       </p>
                       <p className="text-xs text-slate-400 mt-1">
                         User ID: {currentUser.id}
-                      </p>
+                      </p> */}
                     </div>
 
                     <div className="py-2">

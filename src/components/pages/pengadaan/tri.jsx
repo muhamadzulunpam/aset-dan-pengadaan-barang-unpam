@@ -1,9 +1,9 @@
-// src/pages/Pengadaan.jsx
-import React, { useState, useEffect, useCallback } from "react";
+// src/pages/Pengadaan.js
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
 import { procurementService } from "../../../services/procurementService";
+import React, { useState, useEffect } from "react";
 import {
   ShoppingCart,
   Plus,
@@ -21,12 +21,8 @@ import {
   Clock,
   PackageCheck,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "../../../store/useAuthStore";
-import debounce from "lodash/debounce";
 
 const Pengadaan = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -39,141 +35,35 @@ const Pengadaan = () => {
     last_page: 1,
     per_page: 10,
     total: 0,
-    from: null,
-    to: null,
   });
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [statusFilter, setStatusFilter] = useState("");
-  const [approving, setApproving] = useState(false);
-  const [approvalError, setApprovalError] = useState(null);
 
-  console.log("User data:", user);
+  console.log("User:", user);
 
   // Fetch data procurement dari API
-  const fetchProcurements = useCallback(async (page = 1, status = "", search = "") => {
+  const fetchProcurements = async (page = 1) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const params = {
-        page: page,
-        per_page: 10,
-        ...(status && { status: status }),
-        ...(search && { search: search })
-      };
+      const response = await procurementService.getAllProcurements(page);
 
-      console.log("Fetching procurements with params:", params);
-      
-      const response = await procurementService.getAllProcurements(params);
-
-      console.log("Full API Response:", response);
-      
-      // Debug: Tampilkan struktur response
-      console.log("Response structure:", {
-        hasData: !!response.data,
-        isDataArray: Array.isArray(response.data),
-        hasMeta: !!response.meta,
-        meta: response.meta,
-        fullResponse: response
-      });
-
-      // PERBAIKAN: Handle berbagai struktur response
-      let dataToSet = [];
-      let metaToSet = {};
-
-      // Case 1: Response langsung berisi data array dan meta
-      if (response.data && Array.isArray(response.data)) {
-        dataToSet = response.data;
-        metaToSet = response.meta || {};
-      }
-      // Case 2: Laravel pagination default (data ada di response.data.data)
-      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
-        dataToSet = response.data.data;
-        metaToSet = response.data.meta || response.data || {};
-      }
-      // Case 3: Response adalah array langsung
-      else if (Array.isArray(response)) {
-        dataToSet = response;
-        metaToSet = {
-          current_page: 1,
-          last_page: 1,
-          per_page: 10,
-          total: response.length,
-          from: 1,
-          to: response.length,
-        };
-      }
-      // Case 4: Data dari Postman contoh
-      else if (response.data && Array.isArray(response.data) && response.meta) {
-        dataToSet = response.data;
-        metaToSet = response.meta;
-      }
-
-      console.log("Data to set:", dataToSet);
-      console.log("Meta to set:", metaToSet);
-
-      setProcurements(dataToSet);
-      
-      setPagination({
-        current_page: metaToSet.current_page || 1,
-        last_page: metaToSet.last_page || 1,
-        per_page: metaToSet.per_page || 10,
-        total: metaToSet.total || dataToSet.length,
-        from: metaToSet.from || null,
-        to: metaToSet.to || null,
-      });
-
+      setProcurements(response.data);
+      setPagination(response.meta);
     } catch (err) {
       console.error("Error fetching procurements:", err);
-      console.error("Error details:", {
-        message: err.message,
-        response: err.response,
-        status: err.response?.status
-      });
-      
-      setError(err.response?.data?.message || "Gagal memuat data procurement. Silakan coba lagi.");
-      setProcurements([]);
-      setPagination({
-        current_page: 1,
-        last_page: 1,
-        per_page: 10,
-        total: 0,
-        from: null,
-        to: null,
-      });
+      setError("Gagal memuat data procurement. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchProcurements();
   }, []);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchProcurements(1, "", "");
-  }, [fetchProcurements]);
-
-  // Debounced search function
-  const debouncedSearch = useCallback(
-    debounce((searchValue) => {
-      fetchProcurements(1, statusFilter, searchValue);
-    }, 500),
-    [statusFilter, fetchProcurements]
-  );
-
-  // Handle search input change
-  const handleSearchChange = (value) => {
-    setSearchTerm(value);
-    debouncedSearch(value);
-  };
-
-  // Handle status filter change
-  const handleStatusFilterChange = (value) => {
-    setStatusFilter(value);
-    fetchProcurements(1, value, searchTerm);
-  };
-
   const truncateString = (str, maxLength) => {
-    if (!str) return "N/A";
     return str.length > maxLength ? str.slice(0, maxLength) + "..." : str;
   };
 
@@ -183,7 +73,6 @@ const Pengadaan = () => {
       draft: "Draft",
       approved: "Disetujui",
       received: "Diterima",
-      pending: "Menunggu",
     };
     return statusMap[status] || status;
   };
@@ -193,15 +82,13 @@ const Pengadaan = () => {
     const colors = {
       draft: "bg-slate-50 text-slate-700 border border-slate-200",
       approved: "bg-green-50 text-green-700 border border-green-200",
-      received: "bg-blue-50 text-blue-700 border border-blue-200",
-      pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+      received: "bg-blue-50 text-blue-700 border border-blue-200", // Ditambahkan untuk 'received'
     };
     return colors[status] || "bg-slate-50 text-slate-700";
   };
 
   // Format currency
   const formatCurrency = (amount) => {
-    if (!amount) return "Rp 0";
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
@@ -211,7 +98,6 @@ const Pengadaan = () => {
 
   // Format date
   const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
     const date = new Date(dateString);
     return date.toLocaleDateString("id-ID", {
       day: "2-digit",
@@ -222,14 +108,32 @@ const Pengadaan = () => {
 
   // Render icon untuk status persetujuan
   const renderApprovalIcon = (approvalAt) => {
-    if (approvalAt === null || !approvalAt) {
+    if (approvalAt === null) {
       return <Clock className="w-5 h-5 text-slate-500" />;
     } else {
       return <CheckCircle className="w-5 h-5 text-emerald-500" />;
     }
   };
 
-  // Hitung stats dari data real
+  // Filter data berdasarkan pencarian DAN status
+  const filteredData = procurements.filter((item) => {
+    // Filter pencarian
+    const searchMatch =
+      item.procurement_item?.item_name
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      item.procurement_item?.notes
+        ?.toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      item.status?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Filter status
+    const statusMatch = statusFilter === "" || item.status === statusFilter;
+
+    return searchMatch && statusMatch;
+  });
+
+  // Hitung stats dari data real (diperbaiki)
   const calculateStats = () => {
     const totalProcurement = procurements.reduce(
       (sum, item) => sum + (item.procurement_item?.sub_total || 0),
@@ -253,6 +157,7 @@ const Pengadaan = () => {
       return false;
     }).length;
 
+    // Return stats object
     return {
       totalProcurement,
       pendingItems,
@@ -260,17 +165,12 @@ const Pengadaan = () => {
     };
   };
 
-  const stats = calculateStats();
+  const stats = calculateStats(); // Simpan stats ke variable
 
   // Handle pagination
   const handlePageChange = (page) => {
-    console.log("Page change requested to:", page);
-    console.log("Current pagination:", pagination);
-    
     if (page >= 1 && page <= pagination.last_page) {
-      fetchProcurements(page, statusFilter, searchTerm);
-    } else {
-      console.warn("Invalid page number:", page);
+      fetchProcurements(page);
     }
   };
 
@@ -288,11 +188,10 @@ const Pengadaan = () => {
     if (window.confirm("Apakah Anda yakin ingin menghapus procurement ini?")) {
       try {
         await procurementService.deleteProcurement(id);
-        alert("Procurement berhasil dihapus");
-        fetchProcurements(pagination.current_page, statusFilter, searchTerm);
+        fetchProcurements(pagination.current_page);
       } catch (err) {
         console.error("Error deleting procurement:", err);
-        alert(err.response?.data?.message || "Gagal menghapus procurement. Silakan coba lagi.");
+        alert("Gagal menghapus procurement. Silakan coba lagi.");
       }
     }
   };
@@ -303,193 +202,53 @@ const Pengadaan = () => {
       key: 'structural_requester',
       title: 'Kaprodi',
       approvalField: 'approved_by_structural_requester_at',
-      role: 'structural requester',
-      apiField: 'structural requester'
+      role: 'structural requester'
     },
     {
       key: 'building_manager',
       title: 'Kepala Gedung',
       approvalField: 'approved_by_building_manager_at',
-      role: 'building manager',
-      apiField: 'building manager'
+      role: 'building manager'
     },
     {
       key: 'it',
       title: 'IT',
       approvalField: 'approved_by_it_at',
-      role: 'it',
-      apiField: 'it'
+      role: 'it'
     },
     {
       key: 'finance',
       title: 'Keuangan',
       approvalField: 'approved_by_finance_at',
-      role: 'finance',
-      apiField: 'finance'
+      role: 'finance'
     },
     {
       key: 'procurement_staff',
       title: 'Pengadaan',
       approvalField: 'approved_by_procurement_staff_at',
-      role: 'procurement staff',
-      apiField: 'procurement staff'
+      role: 'procurement staff'
     },
     {
       key: 'warehouse_manager',
       title: 'Kepala Gudang',
       approvalField: 'received_by_warehouse_manager_at',
-      role: 'warehouse manager',
-      apiField: 'warehouse manager'
+      role: 'warehouse manager'
     }
   ];
 
-  // Fungsi untuk mendapatkan role user dari data
-  const getUserRole = () => {
-    if (user?.role) {
-      return user.role.toLowerCase();
-    }
-
-    if (user?.data?.role) {
-      return user.data.role.toLowerCase();
-    }
-
-    if (user?.data?.abilities) {
-      const abilities = user.data.abilities;
-      
-      if (abilities.includes('super-admin') || abilities.includes('super admin')) {
-        return 'super admin';
-      }
-      if (abilities.includes('structural-requester') || abilities.includes('structural requester')) {
-        return 'structural requester';
-      }
-      if (abilities.includes('building-manager') || abilities.includes('building manager')) {
-        return 'building manager';
-      }
-      if (abilities.includes('it')) {
-        return 'it';
-      }
-      if (abilities.includes('finance')) {
-        return 'finance';
-      }
-      if (abilities.includes('procurement-staff') || abilities.includes('procurement staff')) {
-        return 'procurement staff';
-      }
-      if (abilities.includes('warehouse-manager') || abilities.includes('warehouse manager')) {
-        return 'warehouse manager';
-      }
-    }
-
-    return "requester";
-  };
-
-  // Fungsi handleApproval
-  const handleApproval = async (columnKey, procurementId) => {
-    try {
-      setApproving(true);
-      setApprovalError(null);
-
-      console.log('Starting approval process...', {
-        columnKey,
-        procurementId,
-        currentUserRole: getUserRole()
-      });
-
-      if (!procurementId) {
-        throw new Error("ID procurement tidak ditemukan");
-      }
-
-      const column = approvalColumns.find(col => col.key === columnKey);
-      if (!column) {
-        throw new Error(`Kolom approval tidak ditemukan: ${columnKey}`);
-      }
-
-      const currentUserRole = getUserRole();
-      const isSuperAdmin = currentUserRole === 'super admin';
-      
-      // Cek authorization
-      if (!isSuperAdmin && currentUserRole !== column.role) {
-        throw new Error(`Anda tidak memiliki izin untuk menyetujui sebagai ${column.title}`);
-      }
-
-      // Cek apakah sudah disetujui
-      const procurement = procurements.find(p => p.id === procurementId);
-      if (procurement?.procurement_item?.[column.approvalField]) {
-        throw new Error(`Sudah disetujui oleh ${column.title}`);
-      }
-
-      // 1. Optimistic update
-      setProcurements(prev => prev.map(item => {
-        if (item.id === procurementId && item.procurement_item) {
-          return {
-            ...item,
-            procurement_item: {
-              ...item.procurement_item,
-              [column.approvalField]: new Date().toISOString()
-            }
-          };
-        }
-        return item;
-      }));
-
-      // 2. Kirim request approval ke backend
-      const response = await procurementService.approveProcurement(
-        procurementId,
-        column.apiField
-      );
-
-      // 3. Tampilkan pesan sukses
-      alert(`Berhasil menyetujui sebagai ${column.title}!`);
-
-      // 4. Refresh data setelah delay
-      setTimeout(() => {
-        fetchProcurements(pagination.current_page, statusFilter, searchTerm);
-      }, 1000);
-
-    } catch (err) {
-      console.error("Approval error:", {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-
-      // Rollback optimistic update
-      fetchProcurements(pagination.current_page, statusFilter, searchTerm);
-
-      let errorMessage = 'Terjadi kesalahan saat menyetujui';
-      
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setApprovalError(errorMessage);
-      alert("Gagal menyetujui: " + errorMessage);
-    } finally {
-      setApproving(false);
-    }
-  };
-
-  // Fungsi renderApprovalButton
-  const renderApprovalButton = (procurement, columnKey) => {
+  // Fungsi renderApprovalButton yang lebih sederhana
+  const renderApprovalButton = (procurementItem, userRole, columnKey) => {
     const column = approvalColumns.find(col => col.key === columnKey);
-    if (!column || !procurement) return null;
+    if (!column) return null;
 
-    // Cek apakah sudah disetujui
-    const isApproved = procurement?.procurement_item?.[column.approvalField] !== null;
-    
-    const currentUserRole = getUserRole();
-    const isSuperAdmin = currentUserRole === 'super admin';
-    
-    // Cek apakah user bisa approve
-    const canApprove = isSuperAdmin || currentUserRole === column.role;
+    const isApproved = procurementItem?.[column.approvalField] !== null;
+    const canApprove = userRole === column.role || userRole === 'super admin';
 
     if (canApprove && !isApproved) {
+      const isSuperAdmin = userRole === 'super admin';
+      
       return (
         <button 
-          disabled={approving}
           className={`
             relative
             px-3 py-1.5 text-xs font-medium text-white rounded-lg 
@@ -511,22 +270,13 @@ const Pengadaan = () => {
             disabled:opacity-50 disabled:cursor-not-allowed
             group
           `}
-          onClick={() => handleApproval(columnKey, procurement.id)}
+          onClick={() => handleApproval(columnKey, procurementItem.id)}
           title={`Setujui sebagai ${column.title}`}
         >
           <span className="absolute inset-0 bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
           
           <span className="relative flex items-center justify-center">
-            {approving ? (
-              <>
-                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
-                Menyimpan...
-              </>
-            ) : (
-              <>
-                {isSuperAdmin ? 'Setujui (Super Admin)' : 'Setujui'}
-              </>
-            )}
+            {isSuperAdmin ? 'Setujui Semua' : 'Setujui'}
           </span>
         </button>
       );
@@ -534,61 +284,96 @@ const Pengadaan = () => {
 
     return null;
   };
+  
+  // Fungsi untuk mendapatkan role user dari data
+  const getUserRole = (userData) => {
+    console.log("Getting role from:", userData);
 
-  // Fungsi untuk menghasilkan array halaman dengan maksimal 5
-  const generatePageNumbers = () => {
-    const current = pagination.current_page;
-    const last = pagination.last_page;
-    const maxPages = 5;
-    
-    if (last <= maxPages) {
-      return Array.from({ length: last }, (_, i) => i + 1);
+    if (userData?.data?.role) {
+      console.log("Found role in user.data.role:", userData.data.role);
+      return userData.data.role.toLowerCase();
     }
-    
-    let start = Math.max(1, current - Math.floor(maxPages / 2));
-    let end = Math.min(last, start + maxPages - 1);
-    
-    if (end - start + 1 < maxPages) {
-      start = Math.max(1, end - maxPages + 1);
+
+    if (userData?.data?.abilities) {
+      const abilities = userData.data.abilities;
+      console.log("Abilities:", abilities);
+
+      for (let ability of abilities) {
+        if (ability.includes("super admin")) return "super admin";
+        if (ability.includes("structural requester")) return "structural requester";
+        if (ability.includes("building manager")) return "building manager";
+        if (ability.includes("it")) return "it";
+        if (ability.includes("finance")) return "finance";
+        if (ability.includes("procurement staff")) return "procurement staff";
+        if (ability.includes("warehouse manager")) return "warehouse manager";
+        if (ability.includes("technician")) return "technician";
+        if (ability.includes("requester")) return "requester";
+      }
+
+      for (let ability of abilities) {
+        if (ability.includes("super-admin")) return "super admin";
+        if (ability.includes("structural-requester")) return "structural requester";
+        if (ability.includes("building-manager")) return "building manager";
+        if (ability.includes("procurement-staff")) return "procurement staff";
+        if (ability.includes("warehouse-manager")) return "warehouse manager";
+      }
     }
-    
-    return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+
+    console.log("No role found, defaulting to requester");
+    return "requester";
   };
 
-  // Render pagination info
-  const renderPaginationInfo = () => {
-    const { current_page, last_page, per_page, total, from, to } = pagination;
-    
-    console.log("Rendering pagination info:", pagination);
-    
-    if (total === 0) {
-      return "Tidak ada data pengadaan";
+  // Fungsi handleApproval
+  const handleApproval = async (approvalType, procurementId) => {
+    try {
+      console.log('Starting approval...');
+      
+      // 1. Optimistic update
+      setProcurements(prev => prev.map(item => {
+        if (item.id === procurementId && item.procurement_item) {
+          const column = approvalColumns.find(col => col.key === approvalType);
+          if (column) {
+            return {
+              ...item,
+              procurement_item: {
+                ...item.procurement_item,
+                [column.approvalField]: new Date().toISOString()
+              }
+            };
+          }
+        }
+        return item;
+      }));
+      
+      // 2. Send request
+      const response = await procurementService.approveProcurementItem(procurementId, {
+        approval_type: approvalType,
+        approved_by_role: getUserRole(user)
+      });
+      
+      console.log('API Response:', response);
+      
+      // 3. Assume success if no error thrown
+      alert('Berhasil menyetujui!');
+      
+      // 4. Refresh data after delay
+      setTimeout(() => {
+        fetchProcurements(pagination.current_page);
+      }, 500);
+      
+    } catch (err) {
+      console.error("Approval error:", err);
+      
+      const errorMsg = err.response?.data?.message || 
+                      err.response?.data?.error || 
+                      err.message || 
+                      'Terjadi kesalahan';
+      
+      alert("Gagal menyetujui: " + errorMsg);
+      
+      // Refresh to get actual state
+      fetchProcurements(pagination.current_page);
     }
-    
-    const start = from || ((current_page - 1) * per_page + 1);
-    const end = to || Math.min(current_page * per_page, total);
-    
-    return (
-      <>
-        Menampilkan{" "}
-        <span className="font-semibold">
-          {start} - {end}
-        </span>{" "}
-        dari{" "}
-        <span className="font-semibold">
-          {total}
-        </span>{" "}
-        pengadaan
-        <span className="text-slate-500 ml-2">
-          (Halaman {current_page} dari {last_page})
-        </span>
-        {(statusFilter || searchTerm) && (
-          <span className="text-blue-600 text-xs ml-2 bg-blue-50 px-2 py-1 rounded">
-            difilter
-          </span>
-        )}
-      </>
-    );
   };
 
   return (
@@ -614,16 +399,15 @@ const Pengadaan = () => {
               </p>
             </div>
 
-            {/* Approval Error */}
-            {approvalError && (
-              <div className="mb-6 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl flex items-center">
-                <AlertCircle className="w-5 h-5 mr-2" />
-                <span>{approvalError}</span>
+            {/* Error Message */}
+            {error && (
+              <div className="mb-6 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl">
+                {error}
                 <button
-                  onClick={() => setApprovalError(null)}
-                  className="ml-auto text-amber-600 hover:text-amber-800"
+                  onClick={() => fetchProcurements()}
+                  className="ml-2 text-rose-600 hover:text-rose-800 underline"
                 >
-                  ✕
+                  Coba lagi
                 </button>
               </div>
             )}
@@ -638,7 +422,7 @@ const Pengadaan = () => {
                       Daftar Pengadaan
                     </h2>
                     <p className="text-slate-600 text-sm">
-                      Total: {pagination.total} pengadaan
+                      Kelola semua proses pengadaan perusahaan
                     </p>
                   </div>
 
@@ -650,27 +434,82 @@ const Pengadaan = () => {
                         type="text"
                         placeholder="Cari pengadaan..."
                         value={searchTerm}
-                        onChange={(e) => handleSearchChange(e.target.value)}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 w-full lg:w-64"
                       />
                     </div>
 
-                    {/* Filter Status */}
+                    {/* Filter Status dan Actions */}
                     <div className="flex items-center space-x-2">
-                      <div className="relative">
-                        <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2 z-10" />
-                        <select
-                          value={statusFilter}
-                          onChange={(e) => handleStatusFilterChange(e.target.value)}
-                          className="pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none cursor-pointer w-full lg:w-48"
-                        >
-                          <option value="">Semua Status</option>
-                          <option value="draft">Draft</option>
-                          <option value="approved">Disetujui</option>
-                          <option value="received">Diterima</option>
-                        </select>
-                        <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {/* Filter Status dengan Badge */}
+                      <div className="relative group">
+                        <div className="flex items-center space-x-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl hover:border-blue-300 transition-all duration-300 cursor-pointer group-hover:shadow-sm">
+                          <Filter className="w-4 h-4 text-slate-500" />
+                          <span className="text-sm text-slate-700 font-medium">
+                            {statusFilter 
+                              ? statusFilter === "draft" ? "Draft" 
+                                : statusFilter === "approved" ? "Disetujui" 
+                                : "Diterima"
+                              : "Filter Status"
+                            }
+                          </span>
+                          <ChevronDown className="w-4 h-4 text-slate-400" />
+                        </div>
+                        
+                        {/* Dropdown Menu */}
+                        <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                          <div className="py-2">
+                            <button
+                              onClick={() => setStatusFilter("")}
+                              className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                                statusFilter === "" ? "text-blue-600 font-medium" : "text-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Semua Status</span>
+                                {statusFilter === "" && <CheckCircle className="w-4 h-4" />}
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => setStatusFilter("draft")}
+                              className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                                statusFilter === "draft" ? "text-blue-600 font-medium" : "text-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Draft</span>
+                                {statusFilter === "draft" && <CheckCircle className="w-4 h-4" />}
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => setStatusFilter("approved")}
+                              className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                                statusFilter === "approved" ? "text-blue-600 font-medium" : "text-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Disetujui</span>
+                                {statusFilter === "approved" && <CheckCircle className="w-4 h-4" />}
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => setStatusFilter("received")}
+                              className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
+                                statusFilter === "received" ? "text-blue-600 font-medium" : "text-slate-700"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>Diterima</span>
+                                {statusFilter === "received" && <CheckCircle className="w-4 h-4" />}
+                              </div>
+                            </button>
+                          </div>
+                        </div>
                       </div>
+
+                      <button className="p-2.5 border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-colors">
+                        <Download className="w-4 h-4" />
+                      </button>
 
                       <button
                         onClick={() => navigate("/pengadaan/create")}
@@ -761,8 +600,8 @@ const Pengadaan = () => {
                       </thead>
 
                       <tbody className="divide-y divide-slate-200/60">
-                        {procurements.length > 0 ? (
-                          procurements.map((procurement) => (
+                        {filteredData.map((procurement) => {
+                          return (
                             <tr
                               key={procurement.id}
                               className="hover:bg-slate-50/50 transition-colors duration-300"
@@ -775,9 +614,6 @@ const Pengadaan = () => {
                                       src={`http://localhost:8000/${procurement.procurement_item.image}`}
                                       alt={procurement.procurement_item.item_name}
                                       className="w-10 h-10 rounded-lg object-cover"
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                      }}
                                     />
                                   )}
                                   <div>
@@ -805,11 +641,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.approved_by_structural_requester_at
+                                  {procurement?.procurement_item?.approved_by_structural_requester_at !== null
                                     ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'structural_requester')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'structural_requester'
+                                )}
                               </td>
 
                               {/* Kolom Persetujuan - Kepala Gedung */}
@@ -820,11 +660,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.approved_by_building_manager_at
+                                  {procurement?.procurement_item?.approved_by_building_manager_at !== null
                                     ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'building_manager')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'building_manager'
+                                )}
                               </td>
 
                               {/* Kolom Persetujuan - IT */}
@@ -835,11 +679,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.approved_by_it_at
+                                  {procurement?.procurement_item?.approved_by_it_at !== null
                                     ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'it')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'it'
+                                )}
                               </td>
 
                               {/* Kolom Persetujuan - Keuangan */}
@@ -850,11 +698,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.approved_by_finance_at
+                                  {procurement?.procurement_item?.approved_by_finance_at !== null
                                     ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'finance')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'finance'
+                                )}
                               </td>
 
                               {/* Kolom Persetujuan - Pengadaan */}
@@ -865,11 +717,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.approved_by_procurement_staff_at
+                                  {procurement?.procurement_item?.approved_by_procurement_staff_at !== null
                                     ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'procurement_staff')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'procurement_staff'
+                                )}
                               </td>
 
                               {/* Kolom Persetujuan - Kepala Gudang */}
@@ -880,11 +736,15 @@ const Pengadaan = () => {
                                   )}
                                 </div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  {procurement?.procurement_item?.received_by_warehouse_manager_at
-                                    ? "Diterima"
+                                  {procurement?.procurement_item?.received_by_warehouse_manager_at !== null
+                                    ? "Disetujui"
                                     : "Menunggu"}
                                 </div>
-                                {renderApprovalButton(procurement, 'warehouse_manager')}
+                                {renderApprovalButton(
+                                  procurement?.procurement_item,
+                                  getUserRole(user),
+                                  'warehouse_manager'
+                                )}
                               </td>
 
                               {/* Kolom Status */}
@@ -902,8 +762,6 @@ const Pengadaan = () => {
                                         ? "bg-emerald-500"
                                         : procurement.status === "received"
                                         ? "bg-blue-500"
-                                        : procurement.status === "pending"
-                                        ? "bg-yellow-500"
                                         : "bg-slate-500"
                                     }`}
                                   ></div>
@@ -926,139 +784,81 @@ const Pengadaan = () => {
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
-                                  {procurement.status === 'draft' && (
-                                    <>
-                                      <button
-                                        onClick={() => handleEdit(procurement.id)}
-                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
-                                        title="Edit"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDelete(procurement.id)}
-                                        className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                                        title="Hapus"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </>
-                                  )}
+                                  <button
+                                    onClick={() => handleEdit(procurement.id)}
+                                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
+                                    title="Edit"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(procurement.id)}
+                                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                                    title="Hapus"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan="10" className="px-6 py-12 text-center text-slate-500">
-                              Tidak ada data pengadaan
-                            </td>
-                          </tr>
-                        )}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
 
                   {/* Table Footer dengan Pagination */}
-                  {pagination.total > 0 && pagination.last_page > 1 && (
-                    <div className="px-6 py-4 border-t border-slate-200/60 bg-white/50">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                        <div className="text-sm text-slate-600 mb-4 sm:mb-0">
-                          {renderPaginationInfo()}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {/* Tombol Sebelumnya */}
+                  <div className="px-6 py-4 border-t border-slate-200/60 bg-white/50">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-slate-600 mb-4 sm:mb-0">
+                        Menampilkan{" "}
+                        <span className="font-semibold">
+                          {filteredData.length}
+                        </span>{" "}
+                        dari{" "}
+                        <span className="font-semibold">
+                          {pagination.total}
+                        </span>{" "}
+                        pengadaan
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handlePageChange(pagination.current_page - 1)}
+                          disabled={pagination.current_page === 1}
+                          className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                        >
+                          Sebelumnya
+                        </button>
+
+                        {[...Array(pagination.last_page)].map((_, index) => (
                           <button
-                            onClick={() => handlePageChange(pagination.current_page - 1)}
-                            disabled={pagination.current_page === 1}
-                            className="flex items-center px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                            key={index + 1}
+                            onClick={() => handlePageChange(index + 1)}
+                            className={`px-4 py-2 rounded-xl font-medium ${
+                              pagination.current_page === index + 1
+                                ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
+                                : "border border-slate-300 text-slate-700 hover:bg-slate-50"
+                            } transition-colors`}
                           >
-                            <ChevronLeft className="w-4 h-4 mr-1" />
-                            Sebelumnya
+                            {index + 1}
                           </button>
+                        ))}
 
-                          {/* Generate pagination numbers (maksimal 5) */}
-                          {(() => {
-                            const pageNumbers = generatePageNumbers();
-                            
-                            if (pageNumbers.length === 0) return null;
-                            
-                            return (
-                              <>
-                                {/* Tombol halaman pertama jika tidak termasuk dalam range */}
-                                {pageNumbers[0] > 1 && (
-                                  <>
-                                    <button
-                                      onClick={() => handlePageChange(1)}
-                                      className={`px-3 py-2 rounded-lg font-medium text-sm ${
-                                        pagination.current_page === 1
-                                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                                          : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                                      } transition-colors`}
-                                    >
-                                      1
-                                    </button>
-                                    {pageNumbers[0] > 2 && (
-                                      <span className="px-1 text-slate-500">...</span>
-                                    )}
-                                  </>
-                                )}
-
-                                {/* Tombol halaman tengah */}
-                                {pageNumbers.map((pageNum) => (
-                                  <button
-                                    key={pageNum}
-                                    onClick={() => handlePageChange(pageNum)}
-                                    className={`px-3 py-2 rounded-lg font-medium text-sm min-w-[40px] ${
-                                      pagination.current_page === pageNum
-                                        ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                                        : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                                    } transition-colors`}
-                                  >
-                                    {pageNum}
-                                  </button>
-                                ))}
-
-                                {/* Tombol halaman terakhir jika tidak termasuk dalam range */}
-                                {pageNumbers[pageNumbers.length - 1] < pagination.last_page && (
-                                  <>
-                                    {pageNumbers[pageNumbers.length - 1] < pagination.last_page - 1 && (
-                                      <span className="px-1 text-slate-500">...</span>
-                                    )}
-                                    <button
-                                      onClick={() => handlePageChange(pagination.last_page)}
-                                      className={`px-3 py-2 rounded-lg font-medium text-sm ${
-                                        pagination.current_page === pagination.last_page
-                                          ? "bg-gradient-to-r from-blue-500 to-cyan-500 text-white"
-                                          : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                                      } transition-colors`}
-                                    >
-                                      {pagination.last_page}
-                                    </button>
-                                  </>
-                                )}
-                              </>
-                            );
-                          })()}
-
-                          {/* Tombol Selanjutnya */}
-                          <button
-                            onClick={() => handlePageChange(pagination.current_page + 1)}
-                            disabled={pagination.current_page === pagination.last_page}
-                            className="flex items-center px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                          >
-                            Selanjutnya
-                            <ChevronRight className="w-4 h-4 ml-1" />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handlePageChange(pagination.current_page + 1)}
+                          disabled={pagination.current_page === pagination.last_page}
+                          className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                        >
+                          Selanjutnya
+                        </button>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </>
               )}
 
               {/* Empty State */}
-              {!loading && procurements.length === 0 && (
+              {!loading && filteredData.length === 0 && (
                 <div className="text-center py-12">
                   <Package className="w-16 h-16 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600">Tidak ada data pengadaan</p>
