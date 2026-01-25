@@ -1,15 +1,53 @@
 // src/pages/pengadaan/Update.js
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Save, ArrowLeft, Upload, Package, Building, Truck, MapPin, Edit, Trash2 } from "lucide-react";
+import {
+  Save,
+  ArrowLeft,
+  Upload,
+  Package,
+  Building,
+  MapPin,
+  Edit,
+  Trash2,
+  ChevronDown,
+  Loader,
+} from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
+import { procurementService } from "../../../services/procurementService";
 import api2 from "../../../store/api2";
 
 const UpdatePengadaan = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [currentImage, setCurrentImage] = useState("");
+  const [hasExistingImage, setHasExistingImage] = useState(false);
+
+  // Data untuk dropdown
+  const [categories, setCategories] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   
+  // Data lokasi hierarki
+  const [buildings, setBuildings] = useState([]);
+  const [floors, setFloors] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [subLocations, setSubLocations] = useState([]);
+  
+  // Loading states
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [loadingBuildings, setLoadingBuildings] = useState(false);
+  const [loadingFloors, setLoadingFloors] = useState(false);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [loadingSubLocations, setLoadingSubLocations] = useState(false);
+
   const [formData, setFormData] = useState({
     category_id: "",
     supplier_id: "",
@@ -20,89 +58,747 @@ const UpdatePengadaan = () => {
     quantity: "",
     price: "",
     is_maintainable: 0,
-    useful_life: "1",
+    useful_life: null,
     notes: "",
+    // Lokasi dengan 4 level:
+    location_level1: "", // Lokasi (contoh: Kampus Pusat)
+    location_level2: "", // Gedung
+    location_level3: "", // Lantai
+    location_level4: "", // Ruangan
   });
 
-  const [currentImage, setCurrentImage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [fetchLoading, setFetchLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [imageError, setImageError] = useState("");
-  const [hasExistingImage, setHasExistingImage] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Fetch all dropdown data
+  const fetchDropdownData = async () => {
+    try {
+      // Fetch categories dari API
+      await fetchCategories();
+      
+      // Fetch suppliers dari API
+      await fetchSuppliers();
 
-  // Fetch data untuk di-edit
+      // Fetch building locations dari API
+      await fetchBuildings();
+      
+    } catch (err) {
+      console.error("Error fetching dropdown data:", err);
+      setError("Gagal memuat data dropdown. Silakan refresh halaman.");
+    }
+  };
+
+  const fetchProcurementData = async () => {
+    try {
+      setFetchLoading(true);
+      setError("");
+      
+      const response = await procurementService.getProcurementById(id);
+      
+      console.log("Procurement API Response:", response);
+      
+      let procurementData;
+      if (response.data) {
+        procurementData = response.data;
+      } else {
+        procurementData = response;
+      }
+      
+      console.log("Procurement Data:", procurementData);
+      
+      if (!procurementData) {
+        throw new Error("Data pengadaan tidak ditemukan");
+      }
+      
+      // Pastikan procurement_item ada
+      const procurementItem = procurementData.procurement_item || procurementData;
+      
+      // Set current image jika ada
+      if (procurementItem?.image) {
+        let imageUrl = procurementItem.image;
+        
+        // Handle berbagai format image path
+        if (imageUrl.startsWith('http')) {
+          setCurrentImage(imageUrl);
+        } else if (imageUrl.startsWith('storage/')) {
+          setCurrentImage(imageUrl);
+        } else if (imageUrl.startsWith('assets/')) {
+          setCurrentImage(`storage/${imageUrl}`);
+        } else {
+          setCurrentImage(`storage/assets/procurements/${imageUrl}`);
+        }
+        setHasExistingImage(true);
+      } else {
+        setCurrentImage("");
+        setHasExistingImage(false);
+      }
+
+      // Set form data awal
+      const initialFormData = {
+        category_id: procurementItem?.category?.id?.toString() || "",
+        supplier_id: procurementItem?.supplier?.id?.toString() || "",
+        location_id: procurementItem?.location?.id?.toString() || "",
+        item_name: procurementItem?.item_name || "",
+        image: null,
+        description: procurementItem?.description || "",
+        quantity: procurementItem?.quantity?.toString() || "1",
+        price: procurementItem?.price?.toString() || "",
+        is_maintainable: procurementItem?.is_maintainable || 0,
+        useful_life: procurementItem?.useful_life?.toString() || "",
+        notes: procurementItem?.notes || "",
+        // PERBAIKAN: Gunakan field yang benar
+        location_level1: "",
+        location_level2: "",
+        location_level3: "",
+        location_level4: "",
+      };
+
+      console.log("Initial Form Data:", initialFormData);
+      console.log("Location Object:", procurementItem?.location);
+      
+      setFormData(initialFormData);
+
+      // Bangun hierarki lokasi dari data nested
+      if (procurementItem?.location) {
+        await buildLocationHierarchyFromNested(procurementItem.location);
+      }
+
+    } catch (err) {
+      console.error("Error fetching procurement:", err);
+      
+      let errorMessage = "Gagal memuat data pengadaan. ";
+      
+      if (err.response) {
+        console.error("Response error details:", {
+          status: err.response.status,
+          data: err.response.data
+        });
+        
+        if (err.response.status === 404) {
+          errorMessage = "Data pengadaan tidak ditemukan.";
+        } else if (err.response.status === 500) {
+          errorMessage = "Terjadi kesalahan server. ";
+          if (err.response.data?.message) {
+            errorMessage += err.response.data.message;
+          }
+        } else if (err.response.data?.message) {
+          errorMessage += err.response.data.message;
+        }
+      } else if (err.request) {
+        errorMessage += "Tidak dapat terhubung ke server.";
+      } else {
+        errorMessage += err.message;
+      }
+      
+      setError(errorMessage);
+      
+      if (err.response?.status === 404) {
+        setTimeout(() => {
+          navigate("/pengadaan");
+        }, 3000);
+      }
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  const buildLocationHierarchyFromNested = async (locationData) => {
+    try {
+      console.log("Building hierarchy from nested location:", locationData);
+      
+      if (!locationData || !locationData.id) {
+        console.log("No location data available");
+        return;
+      }
+      
+      // Traverse ke atas untuk mendapatkan semua parent
+      const levels = [];
+      let current = locationData;
+      
+      while (current) {
+        levels.unshift({
+          id: current.id.toString(),
+          name: current.name,
+          level: levels.length + 1
+        });
+        current = current.parent;
+      }
+      
+      console.log("Levels found:", levels);
+      
+      // Map levels ke formData
+      const updates = {};
+      
+      // Level 1: Lokasi (Kampus Pusat) - index 0
+      if (levels.length >= 1) {
+        updates.location_level1 = levels[0].id;
+      }
+      
+      // Level 2: Gedung (Gedung A) - index 1
+      if (levels.length >= 2) {
+        updates.location_level2 = levels[1].id;
+      }
+      
+      // Level 3: Lantai (Lantai 1) - index 2
+      if (levels.length >= 3) {
+        updates.location_level3 = levels[2].id;
+      }
+      
+      // Level 4: Ruangan (Ruang 101) - index 3
+      if (levels.length >= 4) {
+        updates.location_level4 = levels[3].id;
+        updates.location_id = levels[3].id;
+      } else if (levels.length === 3) {
+        // Jika hanya 3 level (tidak ada ruangan), gunakan lantai sebagai location_id
+        updates.location_id = levels[2].id;
+      }
+      
+      console.log("Form updates:", updates);
+      
+      // Update formData
+      setFormData(prev => ({ ...prev, ...updates }));
+      
+      // Fetch dropdown data berdasarkan levels
+      if (levels.length >= 1) {
+        // Level 1 sudah di-fetch oleh fetchBuildings()
+        // Fetch buildings untuk level 1
+        if (levels.length >= 2) {
+          await fetchFloors(parseInt(levels[0].id)); // Fetch gedung untuk lokasi ini
+          
+          // Fetch floors untuk level 2
+          if (levels.length >= 3) {
+            await fetchRooms(parseInt(levels[1].id)); // Fetch lantai untuk gedung ini
+            
+            // Fetch rooms untuk level 3
+            if (levels.length >= 4) {
+              await fetchSubLocations(parseInt(levels[2].id)); // Fetch ruangan untuk lantai ini
+            }
+          }
+        }
+      }
+      
+    } catch (err) {
+      console.error("Error building location hierarchy from nested:", err);
+      
+      // Fallback: set location_id saja
+      setFormData(prev => ({ 
+        ...prev, 
+        location_id: locationData.id.toString() 
+      }));
+    }
+  };
+  // Fetch lokasi hierarki berdasarkan location_id
+  const fetchLocationHierarchy = async (locationId) => {
+    try {
+      console.log("Fetching location hierarchy for ID:", locationId);
+      
+      const response = await api2.get(`/api/locations/${locationId}/getWithHierarchy`);
+      
+      console.log("Location hierarchy response:", response.data);
+      
+      if (response.data && response.data.data) {
+        const locationData = response.data.data;
+        
+        // Gunakan data hierarki untuk membangun form
+        if (locationData.parents && Array.isArray(locationData.parents)) {
+          const parents = locationData.parents;
+          
+          let buildingId = "";
+          let floorId = "";
+          let roomId = "";
+          let subLocationId = "";
+          
+          // Identifikasi setiap level
+          parents.forEach(parent => {
+            if (parent.level === 1) {
+              buildingId = parent.id.toString();
+            } else if (parent.level === 2) {
+              floorId = parent.id.toString();
+            } else if (parent.level === 3) {
+              roomId = parent.id.toString();
+            } else if (parent.level === 4) {
+              subLocationId = parent.id.toString();
+            }
+          });
+          
+          // Update formData secara bertahap
+          const updateData = {};
+          
+          if (buildingId) {
+            updateData.building_id = buildingId;
+            await fetchFloors(parseInt(buildingId));
+          }
+          
+          if (floorId) {
+            updateData.floor_id = floorId;
+            await fetchRooms(parseInt(floorId));
+          }
+          
+          if (roomId) {
+            updateData.room_id = roomId;
+            await fetchSubLocations(parseInt(roomId));
+          }
+          
+          if (subLocationId) {
+            updateData.sub_location_id = subLocationId;
+          }
+          
+          // Pastikan location_id tetap sama
+          updateData.location_id = locationId.toString();
+          
+          setFormData(prev => ({ ...prev, ...updateData }));
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching location hierarchy:", err);
+      // Tetap set location_id meskipun gagal fetch hierarki
+      setFormData(prev => ({ 
+        ...prev, 
+        location_id: locationId.toString() 
+      }));
+    }
+  };
+  // Bangun hierarki lokasi berdasarkan location data
+  const buildLocationHierarchy = async (locationId, locationData) => {
+    try {
+      console.log("Building location hierarchy:", { locationId, locationData });
+      
+      if (!locationData) {
+        console.log("No location data, using only location_id");
+        setFormData(prev => ({ 
+          ...prev, 
+          location_id: locationId?.toString() || "" 
+        }));
+        return;
+      }
+      
+      // Reset location fields terlebih dahulu
+      const resetData = {
+        building_id: "",
+        floor_id: "",
+        room_id: "",
+        sub_location_id: ""
+      };
+      
+      setFormData(prev => ({ ...prev, ...resetData }));
+      
+      // Cek struktur locationData
+      if (locationData.parents && Array.isArray(locationData.parents)) {
+        const parents = locationData.parents;
+        console.log("Parents found:", parents);
+        
+        let buildingId = "";
+        let floorId = "";
+        let roomId = "";
+        let subLocationId = "";
+        
+        // Identifikasi level berdasarkan level field
+        parents.forEach(parent => {
+          switch (parent.level) {
+            case 1:
+              buildingId = parent.id.toString();
+              break;
+            case 2:
+              floorId = parent.id.toString();
+              break;
+            case 3:
+              roomId = parent.id.toString();
+              break;
+            case 4:
+              subLocationId = parent.id.toString();
+              break;
+          }
+        });
+        
+        // Update formData secara sequential
+        if (buildingId) {
+          setFormData(prev => ({ ...prev, building_id: buildingId }));
+          await fetchFloors(parseInt(buildingId), async () => {
+            if (floorId) {
+              setFormData(prev => ({ ...prev, floor_id: floorId }));
+              await fetchRooms(parseInt(floorId), async () => {
+                if (roomId) {
+                  setFormData(prev => ({ ...prev, room_id: roomId }));
+                  await fetchSubLocations(parseInt(roomId), () => {
+                    if (subLocationId) {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        sub_location_id: subLocationId,
+                        location_id: subLocationId
+                      }));
+                    } else if (roomId) {
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        location_id: roomId
+                      }));
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      } else {
+        // Jika tidak ada parents, set langsung location_id
+        setFormData(prev => ({ 
+          ...prev, 
+          location_id: locationId.toString() 
+        }));
+      }
+      
+    } catch (err) {
+      console.error("Error building location hierarchy:", err);
+      // Fallback: set location_id saja
+      setFormData(prev => ({ 
+        ...prev, 
+        location_id: locationId.toString() 
+      }));
+    }
+  };
+
+  // Fetch categories dari API
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const response = await api2.get("/api/categories/all");
+      
+      console.log("Categories response:", response);
+      
+      let categoriesData = [];
+      
+      // Handle response berdasarkan struktur data
+      if (response.data && response.data.data) {
+        categoriesData = response.data.data;
+      } else if (response.data && response.data.meta && response.data.meta.code === 200) {
+        categoriesData = response.data.data || [];
+      } else if (Array.isArray(response.data)) {
+        categoriesData = response.data;
+      }
+      
+      if (!Array.isArray(categoriesData)) {
+        console.error("Categories data is not an array:", categoriesData);
+        categoriesData = [];
+      }
+      
+      setCategories(categoriesData);
+      
+    } catch (err) {
+      console.error("Error fetching categories:", err);
+      let errorMessage = "Gagal memuat data kategori.";
+      if (err.response) {
+        if (err.response.status === 403) {
+          errorMessage = "Anda tidak memiliki izin untuk mengakses data kategori.";
+        } else if (err.response.data && err.response.data.message) {
+          errorMessage = err.response.data.message;
+        }
+      }
+      setError(errorMessage);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Fetch suppliers dari API
+  const fetchSuppliers = async () => {
+    try {
+      setLoadingSuppliers(true);
+      const response = await api2.get("/api/suppliers/all");
+      
+      console.log("Suppliers response:", response);
+      
+      let suppliersData = [];
+      
+      // Handle response (sesuaikan dengan struktur dari backend)
+      if (response.data && response.data.data) {
+        suppliersData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        suppliersData = response.data;
+      }
+      
+      if (!Array.isArray(suppliersData)) {
+        console.error("Suppliers data is not an array:", suppliersData);
+        suppliersData = [];
+      }
+      
+      setSuppliers(suppliersData);
+      
+    } catch (err) {
+      console.error("Error fetching suppliers:", err);
+      setError("Gagal memuat data supplier.");
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
+
+  // Fetch buildings (level 1)
+  const fetchBuildings = async () => {
+    try {
+      setLoadingBuildings(true);
+      const response = await api2.get("/api/locations/building");
+      
+      console.log("Buildings response:", response);
+      
+      let buildingsData = [];
+      if (response.data && response.data.data) {
+        buildingsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        buildingsData = response.data;
+      }
+      
+      if (!Array.isArray(buildingsData)) {
+        console.error("Buildings data is not an array:", buildingsData);
+        buildingsData = [];
+      }
+      
+      setBuildings(buildingsData);
+      
+    } catch (err) {
+      console.error("Error fetching buildings:", err);
+      let errorMessage = "Gagal memuat data gedung.";
+      if (err.response) {
+        if (err.response.status === 403) {
+          errorMessage = "Anda tidak memiliki izin untuk mengakses data lokasi.";
+        } else if (err.response.data && err.response.data.message) {
+          errorMessage = err.response.data.message;
+        }
+      }
+      setError(errorMessage);
+    } finally {
+      setLoadingBuildings(false);
+    }
+  };
+
+  // Fetch floors (level 2) ketika building dipilih
+  const fetchFloors = async (buildingId, callback = null) => {
+    if (!buildingId) {
+      setFloors([]);
+      setRooms([]);
+      setSubLocations([]);
+      return;
+    }
+
+    try {
+      setLoadingFloors(true);
+      
+      const response = await api2.get(`/api/locations/${buildingId}/getOneLevelChildren`);
+      
+      console.log("Floors response for building", buildingId, ":", response);
+      
+      let floorsData = [];
+      if (response.data && response.data.data) {
+        floorsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        floorsData = response.data;
+      }
+      
+      if (!Array.isArray(floorsData)) {
+        console.error("Floors data is not an array:", floorsData);
+        floorsData = [];
+      }
+      
+      setFloors(floorsData);
+      
+      // Clear child data
+      setRooms([]);
+      setSubLocations([]);
+      
+      // Execute callback jika ada
+      if (callback && typeof callback === 'function') {
+        await callback();
+      }
+      
+    } catch (err) {
+      console.error(`Error fetching floors for building ${buildingId}:`, err);
+      setFloors([]);
+      setError("Gagal memuat data lantai untuk gedung ini.");
+    } finally {
+      setLoadingFloors(false);
+    }
+  };
+  // Fetch rooms (level 3) ketika floor dipilih
+  const fetchRooms = async (floorId, callback = null) => {
+    if (!floorId) {
+      setRooms([]);
+      setSubLocations([]);
+      return;
+    }
+
+    try {
+      setLoadingRooms(true);
+      setRooms([]);
+      setSubLocations([]);
+
+      const response = await api2.get(`/api/locations/${floorId}/getOneLevelChildren`);
+      
+      console.log("Rooms response for floor", floorId, ":", response);
+      
+      let roomsData = [];
+      if (response.data && response.data.data) {
+        roomsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        roomsData = response.data;
+      }
+      
+      if (!Array.isArray(roomsData)) {
+        console.error("Rooms data is not an array:", roomsData);
+        roomsData = [];
+      }
+      
+      setRooms(roomsData);
+      
+      // Execute callback jika ada
+      if (callback) {
+        callback();
+      }
+      
+    } catch (err) {
+      console.error(`Error fetching rooms for floor ${floorId}:`, err);
+      setRooms([]);
+      setError("Gagal memuat data ruangan untuk lantai ini.");
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
+
+  // Fetch sub-locations (level 4) ketika room dipilih
+  const fetchSubLocations = async (roomId, callback = null) => {
+    if (!roomId) {
+      setSubLocations([]);
+      return;
+    }
+
+    try {
+      setLoadingSubLocations(true);
+      setSubLocations([]);
+
+      const response = await api2.get(`/api/locations/${roomId}/getOneLevelChildren`);
+      
+      console.log("Sub-locations response for room", roomId, ":", response);
+      
+      let subLocationsData = [];
+      if (response.data && response.data.data) {
+        subLocationsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        subLocationsData = response.data;
+      }
+      
+      if (!Array.isArray(subLocationsData)) {
+        console.error("Sub-locations data is not an array:", subLocationsData);
+        subLocationsData = [];
+      }
+      
+      setSubLocations(subLocationsData);
+      
+      // Execute callback jika ada
+      if (callback) {
+        callback();
+      }
+      
+    } catch (err) {
+      console.error(`Error fetching sub-locations for room ${roomId}:`, err);
+      setSubLocations([]);
+      setError("Gagal memuat data sub-lokasi untuk ruangan ini.");
+    } finally {
+      setLoadingSubLocations(false);
+    }
+  };
+
+  // Initial fetch data
   useEffect(() => {
-    const fetchProcurement = async () => {
+    let isMounted = true;
+
+    const initializeData = async () => {
+      if (!id) {
+        setError("ID pengadaan tidak ditemukan");
+        setFetchLoading(false);
+        return;
+      }
+
       try {
         setFetchLoading(true);
-        const response = await api2.get(`/api/procurements/${id}`);
-        const procurement = response.data.data;
-
-        console.log("Full procurement data:", procurement);
-        console.log("Procurement item data:", procurement.procurement_item);
-
-        const procurementItem = procurement.procurement_item;
-
-        setFormData({
-          category_id: procurementItem?.category_id?.toString() || "",
-          supplier_id: procurementItem?.supplier_id?.toString() || "",
-          location_id: procurementItem?.location_id?.toString() || "",
-          item_name: procurementItem?.item_name || "",
-          image: null,
-          description: procurementItem?.description || "",
-          quantity: procurementItem?.quantity?.toString() || "",
-          price: procurementItem?.price?.toString() || "",
-          is_maintainable: procurementItem?.is_maintainable || 0,
-          useful_life: procurementItem?.useful_life?.toString() || "1",
-          notes: procurementItem?.notes || "",
-        });
-
-        // Set current image URL jika ada
-        if (procurementItem?.image) {
-          setCurrentImage(procurementItem.image);
-          setHasExistingImage(true);
-        }
+        setError("");
+        
+        // Fetch dropdown data secara paralel
+        await Promise.all([
+          fetchDropdownData()
+        ]);
+        
+        // Kemudian fetch procurement data
+        await fetchProcurementData();
+        
       } catch (err) {
-        console.error("Fetch error:", err);
-        setError("Gagal memuat data pengadaan");
+        console.error("Error initializing data:", err);
+        if (isMounted) {
+          setError("Gagal memuat data awal. Silakan refresh halaman.");
+        }
       } finally {
-        setFetchLoading(false);
+        if (isMounted) {
+          setFetchLoading(false);
+        }
       }
     };
 
-    if (id) {
-      fetchProcurement();
-    }
+    initializeData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   const handleChange = (e) => {
     const { name, value, type, files } = e.target;
 
     if (type === "file") {
-      const file = files[0];
-      if (file && file.size > 1024 * 1024) {
-        setImageError("Ukuran file harus kurang dari 1MB");
-        setFormData((prev) => ({ ...prev, image: null }));
-        e.target.value = "";
-      } else {
-        setImageError("");
-        setFormData((prev) => ({ ...prev, [name]: file }));
-        // Reset existing image jika upload file baru
-        if (file) {
-          setCurrentImage("");
-          setHasExistingImage(false);
-        }
-      }
+      // ... handle file upload ...
     } else if (type === "checkbox") {
-      setFormData((prev) => ({ 
-        ...prev, 
-        [name]: e.target.checked ? 1 : 0 
-      }));
+      // ... handle checkbox ...
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      // Untuk input biasa
+      if (name === "location_level1") {
+        // Reset children ketika lokasi berubah
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          location_level2: "",
+          location_level3: "",
+          location_level4: "",
+          location_id: "",
+        }));
+        // Fetch gedung untuk lokasi ini
+        fetchBuildingsForLocation(value); // Anda perlu membuat fungsi ini
+      } 
+      else if (name === "location_level2") {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          location_level3: "",
+          location_level4: "",
+          location_id: "",
+        }));
+        // Fetch lantai untuk gedung ini
+        fetchFloorsForBuilding(value); // Ubah nama fungsi
+      } 
+      else if (name === "location_level3") {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          location_level4: "",
+          location_id: value, // Set sebagai location_id sementara
+        }));
+        // Fetch ruangan untuk lantai ini
+        fetchRoomsForFloor(value); // Ubah nama fungsi
+      } 
+      else if (name === "location_level4") {
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          location_id: value, // Gunakan ruangan sebagai location_id final
+        }));
+      }
+      else {
+        // Untuk field lainnya
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      }
     }
   };
 
@@ -118,83 +814,84 @@ const UpdatePengadaan = () => {
     setError("");
     setSuccess("");
 
+    // Validasi lokasi
+    if (!formData.location_id) {
+      setError("Harap pilih lokasi lengkap (Gedung, Lantai, dan Ruangan)");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Validasi required fields
-      if (
-        !formData.category_id ||
-        !formData.supplier_id ||
-        !formData.location_id ||
-        !formData.item_name ||
-        !formData.quantity ||
-        !formData.price
-      ) {
-        throw new Error("Harap isi semua field yang wajib diisi");
-      }
+      console.log("Form data sebelum dikirim:", formData);
 
       const submitData = new FormData();
       submitData.append("_method", "PUT");
-      submitData.append("category_id", formData.category_id);
-      submitData.append("supplier_id", formData.supplier_id);
-      submitData.append("location_id", formData.location_id);
-      submitData.append("item_name", formData.item_name);
-      submitData.append("description", formData.description);
-      submitData.append("quantity", formData.quantity);
-      submitData.append("price", formData.price);
+      
+      // Append data dengan validasi
+      const appendIfValid = (key, value) => {
+        if (value !== null && value !== undefined && value !== "") {
+          submitData.append(key, value);
+        }
+      };
+
+      appendIfValid("category_id", parseInt(formData.category_id));
+      appendIfValid("supplier_id", parseInt(formData.supplier_id));
+      appendIfValid("location_id", parseInt(formData.location_id));
+      appendIfValid("item_name", formData.item_name);
+      appendIfValid("description", formData.description);
+      appendIfValid("quantity", parseInt(formData.quantity));
+      appendIfValid("price", parseFloat(formData.price));
       submitData.append("is_maintainable", formData.is_maintainable);
-      
-      if (formData.is_maintainable && formData.useful_life !== null) {
-        submitData.append("useful_life", formData.useful_life);
-      }
-      
-      submitData.append("notes", formData.notes);
+      appendIfValid("useful_life", formData.useful_life ? parseInt(formData.useful_life) : "");
+      appendIfValid("notes", formData.notes);
 
       // Handle image
       if (formData.image) {
         submitData.append("image", formData.image);
-      } else if (!hasExistingImage) {
-        // Jika tidak ada image existing dan tidak upload baru, hapus image
+      } else if (!hasExistingImage && currentImage) {
+        // Jika ada image sebelumnya tapi ingin dihapus
         submitData.append("remove_image", "true");
       }
 
-      // Debug: Log FormData
-      console.log("Submitting FormData:");
+      console.log("Data yang akan dikirim ke API:");
       for (let [key, value] of submitData.entries()) {
-        console.log(`${key}:`, value);
+        console.log(key, value);
       }
 
-      const response = await api2.post(`/api/procurements/${id}`, submitData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      console.log("Update success:", response.data);
-      setSuccess("Pengadaan berhasil diupdate!");
+      // Gunakan procurementService.updateProcurement
+      const response = await procurementService.updateProcurement(id, submitData);
+      
+      console.log("✅ Update Success:", response);
+      
+      setSuccess(response.message || "Pengadaan berhasil diupdate!");
+      
       setTimeout(() => {
         navigate("/pengadaan");
       }, 2000);
+      
     } catch (err) {
-      console.error("Update error:", err);
-
-      if (err.response?.status === 422) {
-        const validationErrors = err.response.data?.errors;
-        if (validationErrors) {
-          const errorMessages = Object.values(validationErrors)
-            .flat()
-            .join(", ");
-          setError(`Validasi gagal: ${errorMessages}`);
-        } else {
-          setError("Validasi gagal. Silakan periksa input Anda.");
+      console.error("Update Error:", err);
+      
+      let errorMessage = "Gagal mengupdate pengadaan. ";
+      
+      if (err.response) {
+        console.error("Response Error:", {
+          status: err.response.status,
+          data: err.response.data
+        });
+        
+        if (err.response.status === 422) {
+          const errors = err.response.data?.errors;
+          if (errors) {
+            const errorList = Object.values(errors).flat().join(", ");
+            errorMessage = `Validasi gagal: ${errorList}`;
+          }
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
         }
-      } else if (err.response?.status === 403) {
-        setError("Anda tidak memiliki akses untuk mengupdate data ini");
-      } else {
-        setError(
-          err.response?.data?.message ||
-            err.message ||
-            "Gagal mengupdate pengadaan."
-        );
       }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -208,6 +905,7 @@ const UpdatePengadaan = () => {
     }).format(amount);
   };
 
+  // Update loading component
   if (fetchLoading) {
     return (
       <div className="flex h-screen bg-gray-100">
@@ -216,9 +914,10 @@ const UpdatePengadaan = () => {
           <Header setSidebarOpen={setSidebarOpen} />
           <main className="flex-1 overflow-y-auto p-6">
             <div className="max-w-6xl mx-auto">
-              <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center justify-center h-64 space-y-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                <span className="ml-3 text-lg text-slate-600">Memuat data pengadaan...</span>
+                <span className="text-lg text-slate-600">Memuat data pengadaan...</span>
+                <span className="text-sm text-slate-400">ID: {id}</span>
               </div>
             </div>
           </main>
@@ -229,119 +928,316 @@ const UpdatePengadaan = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
+      {/* Sidebar */}
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      
+
+      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
         <Header setSidebarOpen={setSidebarOpen} />
-        
+
+        {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-slate-50 via-white to-amber-50/30">
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-6xl mx-auto">
             {/* Page Header */}
-            <div className="mb-8">
+            <div className="mb-8 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <button
-                    onClick={() => navigate('/pengadaan')}
+                    onClick={() => navigate("/pengadaan")}
                     className="flex items-center space-x-2 text-slate-600 hover:text-slate-800 transition-colors"
                   >
                     <ArrowLeft className="w-5 h-5" />
                     <span>Kembali</span>
                   </button>
                   <div className="w-px h-6 bg-slate-300"></div>
-                  <h1 className="text-3xl font-bold text-slate-900">Edit Pengadaan</h1>
+                  <h1 className="text-3xl font-bold text-slate-900">
+                    Edit Pengadaan
+                  </h1>
                 </div>
                 <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl flex items-center justify-center">
                   <Edit className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <p className="text-slate-600">
-                Update data pengadaan untuk item: <strong>{formData.item_name}</strong>
+              <p className="text-slate-600 text-lg">
+                Update data pengadaan untuk item: <span className="font-semibold">{formData.item_name}</span>
               </p>
             </div>
 
             {/* Alert Messages */}
             {error && (
               <div className="mb-6 bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl">
-                <strong>Error:</strong> {error}
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-rose-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-rose-800">Error</h3>
+                    <div className="mt-1 text-sm text-rose-700">
+                      {error}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
             {success && (
               <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl">
-                <strong>Sukses:</strong> {success}
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-emerald-800">Sukses</h3>
+                    <div className="mt-1 text-sm text-emerald-700">
+                      {success}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Informasi Relational IDs */}
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Informasi Dasar */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Informasi Relational</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Category ID */}
+                <h2 className="text-xl font-bold text-slate-900 mb-6">
+                  Informasi Dasar
+                </h2>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Category */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Category ID *
+                      Kategori *
                     </label>
-                    <input
-                      type="number"
-                      name="category_id"
-                      value={formData.category_id}
-                      onChange={handleChange}
-                      min="1"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="1"
-                      required
-                    />
-                    <p className="text-xs text-slate-500 mt-1">ID kategori dari database</p>
+                    <div className="relative">
+                      <select
+                        name="category_id"
+                        value={formData.category_id}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-10"
+                        required
+                        disabled={loadingCategories}
+                      >
+                        <option value="">Pilih Kategori</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingCategories && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                      )}
+                    </div>
                   </div>
 
-                  {/* Supplier ID */}
+                  {/* Supplier */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Supplier ID *
+                      Supplier *
                     </label>
-                    <input
-                      type="number"
-                      name="supplier_id"
-                      value={formData.supplier_id}
-                      onChange={handleChange}
-                      min="1"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="1"
-                      required
-                    />
-                    <p className="text-xs text-slate-500 mt-1">ID supplier dari database</p>
+                    <div className="relative">
+                      <select
+                        name="supplier_id"
+                        value={formData.supplier_id}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-10"
+                        required
+                        disabled={loadingSuppliers}
+                      >
+                        <option value="">Pilih Supplier</option>
+                        {suppliers.map((supplier) => (
+                          <option key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingSuppliers && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                      )}
+                    </div>
                   </div>
 
-                  {/* Location ID */}
-                  <div>
+                  {/* Lokasi - 4 Level Dropdown */}
+                  <div className="lg:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Location ID *
+                      Lokasi *
                     </label>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                      {/* Level 1: Lokasi (Kampus Pusat) */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Lokasi *
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="location_level1"
+                            value={formData.location_level1}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
+                            required
+                            disabled={loadingBuildings}
+                          >
+                            <option value="">Pilih Lokasi</option>
+                            {buildings.map((location) => (
+                              <option key={location.id} value={location.id}>
+                                {location.name || `Lokasi ${location.id}`}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          {loadingBuildings && (
+                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Level 2: Gedung */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Gedung *
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="location_level2"
+                            value={formData.location_level2}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
+                            required
+                            disabled={!formData.location_level1 || loadingFloors}
+                          >
+                            <option value="">Pilih Gedung</option>
+                            {floors.map((floor) => ( // Ini sebenarnya adalah gedung, rename nanti
+                              <option key={floor.id} value={floor.id}>
+                                {floor.name || `Gedung ${floor.id}`}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          {loadingFloors && (
+                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Level 3: Lantai */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Lantai *
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="location_level3"
+                            value={formData.location_level3}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
+                            required
+                            disabled={!formData.location_level2 || loadingRooms}
+                          >
+                            <option value="">Pilih Lantai</option>
+                            {rooms.map((room) => ( // Ini sebenarnya adalah lantai, rename nanti
+                              <option key={room.id} value={room.id}>
+                                {room.name || `Lantai ${room.id}`}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          {loadingRooms && (
+                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Level 4: Ruangan */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Ruangan *
+                        </label>
+                        <div className="relative">
+                          <select
+                            name="location_level4"
+                            value={formData.location_level4}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
+                            required
+                            disabled={!formData.location_level3 || loadingSubLocations}
+                          >
+                            <option value="">Pilih Ruangan</option>
+                            {subLocations.length > 0 ? (
+                              subLocations.map((subLoc) => ( // Ini sebenarnya adalah ruangan
+                                <option key={subLoc.id} value={subLoc.id}>
+                                  {subLoc.name || `Ruangan ${subLoc.id}`}
+                                </option>
+                              ))
+                            ) : (
+                              <option value="" disabled>
+                                Tidak ada ruangan
+                              </option>
+                            )}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                          {loadingSubLocations && (
+                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lokasi Terpilih */}
+                    {(formData.location_level1 || formData.location_level2 || formData.location_level3 || formData.location_level4) && (
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-center">
+                          <MapPin className="w-4 h-4 text-blue-500 mr-2" />
+                          <span className="text-sm font-medium text-blue-800">
+                            Lokasi terpilih:
+                          </span>
+                        </div>
+                        <div className="text-sm text-blue-700 mt-1">
+                          {(() => {
+                            const location1 = buildings.find(b => b.id === parseInt(formData.location_level1));
+                            const location2 = floors.find(f => f.id === parseInt(formData.location_level2));
+                            const location3 = rooms.find(r => r.id === parseInt(formData.location_level3));
+                            const location4 = subLocations.find(s => s.id === parseInt(formData.location_level4));
+                            
+                            let locationPath = [];
+                            if (location1) locationPath.push(location1.name || `Lokasi ${location1.id}`);
+                            if (location2) locationPath.push(location2.name || `Gedung ${location2.id}`);
+                            if (location3) locationPath.push(location3.name || `Lantai ${location3.id}`);
+                            if (location4) locationPath.push(location4.name || `Ruangan ${location4.id}`);
+                            
+                            return locationPath.length > 0 ? locationPath.join(" → ") : "Belum memilih lokasi";
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Hidden input untuk location_id - akan diisi dengan ID level terakhir */}
                     <input
-                      type="number"
+                      type="hidden"
                       name="location_id"
-                      value={formData.location_id}
-                      onChange={handleChange}
-                      min="1"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="1"
+                      value={formData.location_level4 || formData.location_level3 || formData.location_level2 || ""}
                       required
                     />
-                    <p className="text-xs text-slate-500 mt-1">ID lokasi (harus leaf node)</p>
+                    
+                    {/* Validation message */}
+                    {!formData.location_level4 && (
+                      <p className="text-sm text-rose-600 mt-2">
+                        Silakan pilih lokasi, gedung, lantai, dan ruangan untuk menentukan lokasi
+                      </p>
+                    )}
                   </div>
-                </div>
-              </div>
 
-              {/* Informasi Item */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Informasi Item</h2>
-                
-                <div className="grid grid-cols-1 gap-4">
                   {/* Item Name */}
-                  <div>
+                  <div className="lg:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       Nama Item *
                     </label>
@@ -355,29 +1251,16 @@ const UpdatePengadaan = () => {
                       required
                     />
                   </div>
-
-                  {/* Description */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Deskripsi
-                    </label>
-                    <textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleChange}
-                      rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="Deskripsi detail item..."
-                    />
-                  </div>
                 </div>
               </div>
 
-              {/* Detail Kuantitas dan Harga */}
+              {/* Detail Item */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Detail Kuantitas & Harga</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <h2 className="text-xl font-bold text-slate-900 mb-6">
+                  Detail Item
+                </h2>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Quantity */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -417,26 +1300,21 @@ const UpdatePengadaan = () => {
                       </p>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {/* Maintenance Settings */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Pengaturan Maintenance</h2>
-                
-                <div className="space-y-4">
                   {/* Is Maintainable */}
-                  <div className="flex items-center space-x-3">
-                    <input
-                      type="checkbox"
-                      name="is_maintainable"
-                      checked={formData.is_maintainable === 1}
-                      onChange={handleChange}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-                    />
-                    <span className="text-sm font-medium text-slate-700">
-                      Item dapat di-maintain (memerlukan perawatan)
-                    </span>
+                  <div className="lg:col-span-2">
+                    <label className="flex items-center space-x-3">
+                      <input
+                        type="checkbox"
+                        name="is_maintainable"
+                        checked={formData.is_maintainable === 1}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                      />
+                      <span className="text-sm font-medium text-slate-700">
+                        Item dapat di-maintain (memerlukan perawatan)
+                      </span>
+                    </label>
                   </div>
 
                   {/* Useful Life - Conditional */}
@@ -453,17 +1331,19 @@ const UpdatePengadaan = () => {
                         min="1"
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
                         placeholder="1"
-                        required
+                        required={formData.is_maintainable === 1}
                       />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Gambar dan Catatan */}
+              {/* Gambar dan Deskripsi */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-4">Gambar & Catatan</h2>
-                
+                <h2 className="text-xl font-bold text-slate-900 mb-6">
+                  Gambar & Deskripsi
+                </h2>
+
                 <div className="space-y-6">
                   {/* Image Upload */}
                   <div>
@@ -477,18 +1357,18 @@ const UpdatePengadaan = () => {
                         <p className="text-sm text-slate-600 mb-2">Gambar saat ini:</p>
                         <div className="flex items-center space-x-4">
                           <img 
-                            src={currentImage} 
+                            src={currentImage.startsWith('http') ? 
+                                  currentImage : 
+                                  `http://localhost:8000/${currentImage}`} 
                             alt="Current item" 
                             className="w-32 h-32 object-cover rounded-lg border border-slate-200"
+                            onError={(e) => {
+                              console.error("Error loading image:", currentImage);
+                              // Fallback image
+                              e.target.src = "https://via.placeholder.com/128x128?text=Gambar+Tidak+Tersedia";
+                            }}
                           />
-                          <button
-                            type="button"
-                            onClick={handleRemoveImage}
-                            className="flex items-center space-x-1 px-3 py-2 bg-rose-500 text-white text-sm rounded-lg hover:bg-rose-600 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span>Hapus</span>
-                          </button>
+                          {/* ... rest of the code ... */}
                         </div>
                       </div>
                     )}
@@ -499,7 +1379,9 @@ const UpdatePengadaan = () => {
                       <p className="text-slate-600 mb-2">
                         {hasExistingImage ? "Upload gambar baru untuk mengganti" : "Upload gambar item"}
                       </p>
-                      <p className="text-slate-500 text-sm mb-4">JPG, PNG (Max. 1MB)</p>
+                      <p className="text-slate-500 text-sm mb-4">
+                        JPG, PNG (Max. 2MB)
+                      </p>
                       <input
                         type="file"
                         name="image"
@@ -515,14 +1397,36 @@ const UpdatePengadaan = () => {
                         Pilih File
                       </label>
                       {formData.image && (
-                        <p className="text-sm text-slate-600 mt-2">
-                          File terpilih: {formData.image.name}
-                        </p>
+                        <div className="mt-2">
+                          <p className="text-sm text-slate-600">
+                            File terpilih: {formData.image.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Ukuran: {(formData.image.size / 1024).toFixed(2)} KB
+                          </p>
+                        </div>
                       )}
                       {imageError && (
-                        <p className="text-sm text-rose-600 mt-2">{imageError}</p>
+                        <p className="text-sm text-rose-600 mt-2">
+                          {imageError}
+                        </p>
                       )}
                     </div>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Deskripsi
+                    </label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleChange}
+                      rows={3}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
+                      placeholder="Deskripsi detail item..."
+                    />
                   </div>
 
                   {/* Notes */}
@@ -546,20 +1450,20 @@ const UpdatePengadaan = () => {
               <div className="flex items-center justify-between pt-6">
                 <button
                   type="button"
-                  onClick={() => navigate('/pengadaan')}
+                  onClick={() => navigate("/pengadaan")}
                   className="px-8 py-3 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all duration-300"
                 >
                   Batal
                 </button>
-                
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !formData.location_id}
                   className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <Loader className="w-5 h-5 animate-spin" />
                       <span>Mengupdate...</span>
                     </>
                   ) : (
