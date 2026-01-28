@@ -156,7 +156,7 @@ const Pengadaan = () => {
   const debouncedSearch = useCallback(
     debounce((searchValue) => {
       fetchProcurements(1, statusFilter, searchValue);
-    }, 500),
+    }, 2000),
     [statusFilter, fetchProcurements]
   );
 
@@ -383,6 +383,7 @@ const Pengadaan = () => {
   };
 
   // Fungsi handleApproval
+  // Fungsi handleApproval yang diperbaiki
   const handleApproval = async (columnKey, procurementId) => {
     try {
       setApproving(true);
@@ -406,44 +407,77 @@ const Pengadaan = () => {
       const currentUserRole = getUserRole();
       const isSuperAdmin = currentUserRole === 'super admin';
       
-      // Cek authorization
+      // Cek authorization - lebih fleksibel
       if (!isSuperAdmin && currentUserRole !== column.role) {
         throw new Error(`Anda tidak memiliki izin untuk menyetujui sebagai ${column.title}`);
       }
 
-      // Cek apakah sudah disetujui
+      // Cari procurement yang akan di-approve
       const procurement = procurements.find(p => p.id === procurementId);
-      if (procurement?.procurement_item?.[column.approvalField]) {
-        throw new Error(`Sudah disetujui oleh ${column.title}`);
+      if (!procurement) {
+        throw new Error("Data procurement tidak ditemukan");
+      }
+
+      // Cek apakah sudah disetujui (cek di procurement_item jika ada)
+      const approvalField = column.approvalField;
+      const isAlreadyApproved = procurement.procurement_item && 
+                                procurement.procurement_item[approvalField] !== null &&
+                                procurement.procurement_item[approvalField] !== undefined;
+
+      if (isAlreadyApproved) {
+        throw new Error(`Sudah disetujui/diterima oleh ${column.title}`);
       }
 
       // 1. Optimistic update
       setProcurements(prev => prev.map(item => {
-        if (item.id === procurementId && item.procurement_item) {
-          return {
-            ...item,
-            procurement_item: {
-              ...item.procurement_item,
-              [column.approvalField]: new Date().toISOString()
+        if (item.id === procurementId) {
+          const updatedItem = { ...item };
+          
+          if (updatedItem.procurement_item) {
+            updatedItem.procurement_item = {
+              ...updatedItem.procurement_item,
+              [approvalField]: new Date().toISOString()
+            };
+            
+            // Update status jika semua sudah disetujui atau diterima
+            if (columnKey === 'warehouse_manager') {
+              updatedItem.status = 'received';
+            } else if (updatedItem.status === 'draft') {
+              updatedItem.status = 'pending';
             }
-          };
+          }
+          
+          return updatedItem;
         }
         return item;
       }));
 
       // 2. Kirim request approval ke backend
-      const response = await procurementService.approveProcurement(
-        procurementId,
-        column.apiField
-      );
+      let response;
+      let successMessage = '';
+      
+      if (columnKey === 'warehouse_manager') {
+        // Gunakan markAsReceived untuk warehouse manager
+        response = await procurementService.markAsReceived(procurementId);
+        successMessage = `Berhasil menandai sebagai diterima oleh ${column.title}!`;
+      } else {
+        // Gunakan approveProcurement untuk role lainnya
+        response = await procurementService.approveProcurement(
+          procurementId,
+          column.apiField
+        );
+        successMessage = `Berhasil menyetujui sebagai ${column.title}!`;
+      }
+
+      console.log('Approval response:', response);
 
       // 3. Tampilkan pesan sukses
-      alert(`Berhasil menyetujui sebagai ${column.title}!`);
+      alert(successMessage);
 
-      // 4. Refresh data setelah delay
+      // 4. Refresh data setelah delay kecil
       setTimeout(() => {
         fetchProcurements(pagination.current_page, statusFilter, searchTerm);
-      }, 1000);
+      }, 500);
 
     } catch (err) {
       console.error("Approval error:", {
@@ -455,24 +489,26 @@ const Pengadaan = () => {
       // Rollback optimistic update
       fetchProcurements(pagination.current_page, statusFilter, searchTerm);
 
-      let errorMessage = 'Terjadi kesalahan saat menyetujui';
+      let errorMessage = 'Terjadi kesalahan saat proses persetujuan';
       
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
+      // Handle error messages lebih baik
+      if (err.response?.data) {
+        if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.error) {
+          errorMessage = err.response.data.error;
+        }
       } else if (err.message) {
         errorMessage = err.message;
       }
 
       setApprovalError(errorMessage);
-      alert("Gagal menyetujui: " + errorMessage);
+      alert("Gagal: " + errorMessage);
     } finally {
       setApproving(false);
     }
   };
-
-  // Fungsi renderApprovalButton
+  // Fungsi renderApprovalButton yang diperbaiki
   const renderApprovalButton = (procurement, columnKey) => {
     const column = approvalColumns.find(col => col.key === columnKey);
     if (!column || !procurement) return null;
@@ -483,10 +519,32 @@ const Pengadaan = () => {
     const currentUserRole = getUserRole();
     const isSuperAdmin = currentUserRole === 'super admin';
     
-    // Cek apakah user bisa approve
-    const canApprove = isSuperAdmin || currentUserRole === column.role;
+    // Cek apakah user bisa approve berdasarkan role
+    const canApproveByRole = isSuperAdmin || currentUserRole === column.role;
+    
+    // Cek apakah procurement dalam status yang memungkinkan untuk approval
+    let canApprove = canApproveByRole && !isApproved;
+    
+    // Validasi status sebelum menampilkan tombol
+    if (canApprove) {
+      // Jika ini adalah kolom "Diterima Kepala Gudang" (warehouse_manager)
+      if (columnKey === 'warehouse_manager') {
+        // Hanya tampilkan tombol "Diterima" jika status sudah "approved"
+        if (procurement.status !== 'approved') {
+          return null; // Jangan tampilkan tombol sama sekali
+        }
+      } else {
+        // Untuk kolom persetujuan lainnya, hanya tampilkan jika status draft atau pending
+        if (!['draft', 'pending'].includes(procurement.status)) {
+          return null; // Jangan tampilkan tombol sama sekali
+        }
+      }
+    }
 
-    if (canApprove && !isApproved) {
+    if (canApprove) {
+      // Tentukan teks dan styling berdasarkan jenis tombol
+      const isWarehouseManager = columnKey === 'warehouse_manager';
+      
       return (
         <button 
           disabled={approving}
@@ -498,21 +556,30 @@ const Pengadaan = () => {
             bg-gradient-to-r 
             ${isSuperAdmin 
               ? 'from-purple-500 to-purple-600' 
+              : isWarehouseManager
+              ? 'from-green-500 to-green-600'
               : 'from-blue-500 to-blue-600'
             }
             hover:shadow-lg
             ${isSuperAdmin 
               ? 'hover:shadow-purple-500/30 hover:from-purple-600 hover:to-purple-700' 
+              : isWarehouseManager
+              ? 'hover:shadow-green-500/30 hover:from-green-600 hover:to-green-700'
               : 'hover:shadow-blue-500/30 hover:from-blue-600 hover:to-blue-700'
             }
             active:scale-[0.98]
             focus:outline-none focus:ring-2 focus:ring-offset-1
-            ${isSuperAdmin ? 'focus:ring-purple-400' : 'focus:ring-blue-400'}
+            ${isSuperAdmin 
+              ? 'focus:ring-purple-400' 
+              : isWarehouseManager
+              ? 'focus:ring-green-400'
+              : 'focus:ring-blue-400'
+            }
             disabled:opacity-50 disabled:cursor-not-allowed
             group
           `}
           onClick={() => handleApproval(columnKey, procurement.id)}
-          title={`Setujui sebagai ${column.title}`}
+          title={`${isWarehouseManager ? 'Tandai Diterima' : 'Setujui'} sebagai ${column.title}`}
         >
           <span className="absolute inset-0 bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"></span>
           
@@ -524,7 +591,12 @@ const Pengadaan = () => {
               </>
             ) : (
               <>
-                {isSuperAdmin ? 'Setujui (Super Admin)' : 'Setujui'}
+                {isSuperAdmin 
+                  ? `Setujui (Super Admin)` 
+                  : isWarehouseManager
+                  ? 'Tandai Diterima'
+                  : 'Setujui'
+                }
               </>
             )}
           </span>

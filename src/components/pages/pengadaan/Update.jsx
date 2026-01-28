@@ -35,18 +35,18 @@ const UpdatePengadaan = () => {
   const [suppliers, setSuppliers] = useState([]);
   
   // Data lokasi hierarki
-  const [buildings, setBuildings] = useState([]);
-  const [floors, setFloors] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [subLocations, setSubLocations] = useState([]);
+  const [locations, setLocations] = useState([]); // Level 1: Lokasi (Kampus Pusat)
+  const [buildings, setBuildings] = useState([]); // Level 2: Gedung
+  const [floors, setFloors] = useState([]);       // Level 3: Lantai
+  const [rooms, setRooms] = useState([]);         // Level 4: Ruangan
   
   // Loading states
   const [loadingCategories, setLoadingCategories] = useState(false);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [loadingFloors, setLoadingFloors] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
-  const [loadingSubLocations, setLoadingSubLocations] = useState(false);
 
   const [formData, setFormData] = useState({
     category_id: "",
@@ -76,380 +76,12 @@ const UpdatePengadaan = () => {
       // Fetch suppliers dari API
       await fetchSuppliers();
 
-      // Fetch building locations dari API
-      await fetchBuildings();
+      // Fetch locations dari API
+      await fetchLocations();
       
     } catch (err) {
       console.error("Error fetching dropdown data:", err);
       setError("Gagal memuat data dropdown. Silakan refresh halaman.");
-    }
-  };
-
-  const fetchProcurementData = async () => {
-    try {
-      setFetchLoading(true);
-      setError("");
-      
-      const response = await procurementService.getProcurementById(id);
-      
-      console.log("Procurement API Response:", response);
-      
-      let procurementData;
-      if (response.data) {
-        procurementData = response.data;
-      } else {
-        procurementData = response;
-      }
-      
-      console.log("Procurement Data:", procurementData);
-      
-      if (!procurementData) {
-        throw new Error("Data pengadaan tidak ditemukan");
-      }
-      
-      // Pastikan procurement_item ada
-      const procurementItem = procurementData.procurement_item || procurementData;
-      
-      // Set current image jika ada
-      if (procurementItem?.image) {
-        let imageUrl = procurementItem.image;
-        
-        // Handle berbagai format image path
-        if (imageUrl.startsWith('http')) {
-          setCurrentImage(imageUrl);
-        } else if (imageUrl.startsWith('storage/')) {
-          setCurrentImage(imageUrl);
-        } else if (imageUrl.startsWith('assets/')) {
-          setCurrentImage(`storage/${imageUrl}`);
-        } else {
-          setCurrentImage(`storage/assets/procurements/${imageUrl}`);
-        }
-        setHasExistingImage(true);
-      } else {
-        setCurrentImage("");
-        setHasExistingImage(false);
-      }
-
-      // Set form data awal
-      const initialFormData = {
-        category_id: procurementItem?.category?.id?.toString() || "",
-        supplier_id: procurementItem?.supplier?.id?.toString() || "",
-        location_id: procurementItem?.location?.id?.toString() || "",
-        item_name: procurementItem?.item_name || "",
-        image: null,
-        description: procurementItem?.description || "",
-        quantity: procurementItem?.quantity?.toString() || "1",
-        price: procurementItem?.price?.toString() || "",
-        is_maintainable: procurementItem?.is_maintainable || 0,
-        useful_life: procurementItem?.useful_life?.toString() || "",
-        notes: procurementItem?.notes || "",
-        // PERBAIKAN: Gunakan field yang benar
-        location_level1: "",
-        location_level2: "",
-        location_level3: "",
-        location_level4: "",
-      };
-
-      console.log("Initial Form Data:", initialFormData);
-      console.log("Location Object:", procurementItem?.location);
-      
-      setFormData(initialFormData);
-
-      // Bangun hierarki lokasi dari data nested
-      if (procurementItem?.location) {
-        await buildLocationHierarchyFromNested(procurementItem.location);
-      }
-
-    } catch (err) {
-      console.error("Error fetching procurement:", err);
-      
-      let errorMessage = "Gagal memuat data pengadaan. ";
-      
-      if (err.response) {
-        console.error("Response error details:", {
-          status: err.response.status,
-          data: err.response.data
-        });
-        
-        if (err.response.status === 404) {
-          errorMessage = "Data pengadaan tidak ditemukan.";
-        } else if (err.response.status === 500) {
-          errorMessage = "Terjadi kesalahan server. ";
-          if (err.response.data?.message) {
-            errorMessage += err.response.data.message;
-          }
-        } else if (err.response.data?.message) {
-          errorMessage += err.response.data.message;
-        }
-      } else if (err.request) {
-        errorMessage += "Tidak dapat terhubung ke server.";
-      } else {
-        errorMessage += err.message;
-      }
-      
-      setError(errorMessage);
-      
-      if (err.response?.status === 404) {
-        setTimeout(() => {
-          navigate("/pengadaan");
-        }, 3000);
-      }
-    } finally {
-      setFetchLoading(false);
-    }
-  };
-
-  const buildLocationHierarchyFromNested = async (locationData) => {
-    try {
-      console.log("Building hierarchy from nested location:", locationData);
-      
-      if (!locationData || !locationData.id) {
-        console.log("No location data available");
-        return;
-      }
-      
-      // Traverse ke atas untuk mendapatkan semua parent
-      const levels = [];
-      let current = locationData;
-      
-      while (current) {
-        levels.unshift({
-          id: current.id.toString(),
-          name: current.name,
-          level: levels.length + 1
-        });
-        current = current.parent;
-      }
-      
-      console.log("Levels found:", levels);
-      
-      // Map levels ke formData
-      const updates = {};
-      
-      // Level 1: Lokasi (Kampus Pusat) - index 0
-      if (levels.length >= 1) {
-        updates.location_level1 = levels[0].id;
-      }
-      
-      // Level 2: Gedung (Gedung A) - index 1
-      if (levels.length >= 2) {
-        updates.location_level2 = levels[1].id;
-      }
-      
-      // Level 3: Lantai (Lantai 1) - index 2
-      if (levels.length >= 3) {
-        updates.location_level3 = levels[2].id;
-      }
-      
-      // Level 4: Ruangan (Ruang 101) - index 3
-      if (levels.length >= 4) {
-        updates.location_level4 = levels[3].id;
-        updates.location_id = levels[3].id;
-      } else if (levels.length === 3) {
-        // Jika hanya 3 level (tidak ada ruangan), gunakan lantai sebagai location_id
-        updates.location_id = levels[2].id;
-      }
-      
-      console.log("Form updates:", updates);
-      
-      // Update formData
-      setFormData(prev => ({ ...prev, ...updates }));
-      
-      // Fetch dropdown data berdasarkan levels
-      if (levels.length >= 1) {
-        // Level 1 sudah di-fetch oleh fetchBuildings()
-        // Fetch buildings untuk level 1
-        if (levels.length >= 2) {
-          await fetchFloors(parseInt(levels[0].id)); // Fetch gedung untuk lokasi ini
-          
-          // Fetch floors untuk level 2
-          if (levels.length >= 3) {
-            await fetchRooms(parseInt(levels[1].id)); // Fetch lantai untuk gedung ini
-            
-            // Fetch rooms untuk level 3
-            if (levels.length >= 4) {
-              await fetchSubLocations(parseInt(levels[2].id)); // Fetch ruangan untuk lantai ini
-            }
-          }
-        }
-      }
-      
-    } catch (err) {
-      console.error("Error building location hierarchy from nested:", err);
-      
-      // Fallback: set location_id saja
-      setFormData(prev => ({ 
-        ...prev, 
-        location_id: locationData.id.toString() 
-      }));
-    }
-  };
-  // Fetch lokasi hierarki berdasarkan location_id
-  const fetchLocationHierarchy = async (locationId) => {
-    try {
-      console.log("Fetching location hierarchy for ID:", locationId);
-      
-      const response = await api2.get(`/api/locations/${locationId}/getWithHierarchy`);
-      
-      console.log("Location hierarchy response:", response.data);
-      
-      if (response.data && response.data.data) {
-        const locationData = response.data.data;
-        
-        // Gunakan data hierarki untuk membangun form
-        if (locationData.parents && Array.isArray(locationData.parents)) {
-          const parents = locationData.parents;
-          
-          let buildingId = "";
-          let floorId = "";
-          let roomId = "";
-          let subLocationId = "";
-          
-          // Identifikasi setiap level
-          parents.forEach(parent => {
-            if (parent.level === 1) {
-              buildingId = parent.id.toString();
-            } else if (parent.level === 2) {
-              floorId = parent.id.toString();
-            } else if (parent.level === 3) {
-              roomId = parent.id.toString();
-            } else if (parent.level === 4) {
-              subLocationId = parent.id.toString();
-            }
-          });
-          
-          // Update formData secara bertahap
-          const updateData = {};
-          
-          if (buildingId) {
-            updateData.building_id = buildingId;
-            await fetchFloors(parseInt(buildingId));
-          }
-          
-          if (floorId) {
-            updateData.floor_id = floorId;
-            await fetchRooms(parseInt(floorId));
-          }
-          
-          if (roomId) {
-            updateData.room_id = roomId;
-            await fetchSubLocations(parseInt(roomId));
-          }
-          
-          if (subLocationId) {
-            updateData.sub_location_id = subLocationId;
-          }
-          
-          // Pastikan location_id tetap sama
-          updateData.location_id = locationId.toString();
-          
-          setFormData(prev => ({ ...prev, ...updateData }));
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching location hierarchy:", err);
-      // Tetap set location_id meskipun gagal fetch hierarki
-      setFormData(prev => ({ 
-        ...prev, 
-        location_id: locationId.toString() 
-      }));
-    }
-  };
-  // Bangun hierarki lokasi berdasarkan location data
-  const buildLocationHierarchy = async (locationId, locationData) => {
-    try {
-      console.log("Building location hierarchy:", { locationId, locationData });
-      
-      if (!locationData) {
-        console.log("No location data, using only location_id");
-        setFormData(prev => ({ 
-          ...prev, 
-          location_id: locationId?.toString() || "" 
-        }));
-        return;
-      }
-      
-      // Reset location fields terlebih dahulu
-      const resetData = {
-        building_id: "",
-        floor_id: "",
-        room_id: "",
-        sub_location_id: ""
-      };
-      
-      setFormData(prev => ({ ...prev, ...resetData }));
-      
-      // Cek struktur locationData
-      if (locationData.parents && Array.isArray(locationData.parents)) {
-        const parents = locationData.parents;
-        console.log("Parents found:", parents);
-        
-        let buildingId = "";
-        let floorId = "";
-        let roomId = "";
-        let subLocationId = "";
-        
-        // Identifikasi level berdasarkan level field
-        parents.forEach(parent => {
-          switch (parent.level) {
-            case 1:
-              buildingId = parent.id.toString();
-              break;
-            case 2:
-              floorId = parent.id.toString();
-              break;
-            case 3:
-              roomId = parent.id.toString();
-              break;
-            case 4:
-              subLocationId = parent.id.toString();
-              break;
-          }
-        });
-        
-        // Update formData secara sequential
-        if (buildingId) {
-          setFormData(prev => ({ ...prev, building_id: buildingId }));
-          await fetchFloors(parseInt(buildingId), async () => {
-            if (floorId) {
-              setFormData(prev => ({ ...prev, floor_id: floorId }));
-              await fetchRooms(parseInt(floorId), async () => {
-                if (roomId) {
-                  setFormData(prev => ({ ...prev, room_id: roomId }));
-                  await fetchSubLocations(parseInt(roomId), () => {
-                    if (subLocationId) {
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        sub_location_id: subLocationId,
-                        location_id: subLocationId
-                      }));
-                    } else if (roomId) {
-                      setFormData(prev => ({ 
-                        ...prev, 
-                        location_id: roomId
-                      }));
-                    }
-                  });
-                }
-              });
-            }
-          });
-        }
-      } else {
-        // Jika tidak ada parents, set langsung location_id
-        setFormData(prev => ({ 
-          ...prev, 
-          location_id: locationId.toString() 
-        }));
-      }
-      
-    } catch (err) {
-      console.error("Error building location hierarchy:", err);
-      // Fallback: set location_id saja
-      setFormData(prev => ({ 
-        ...prev, 
-        location_id: locationId.toString() 
-      }));
     }
   };
 
@@ -527,13 +159,59 @@ const UpdatePengadaan = () => {
     }
   };
 
-  // Fetch buildings (level 1)
-  const fetchBuildings = async () => {
+  // Fetch locations (level 1)
+  const fetchLocations = async () => {
     try {
-      setLoadingBuildings(true);
+      setLoadingLocations(true);
       const response = await api2.get("/api/locations/building");
       
-      console.log("Buildings response:", response);
+      console.log("Locations response:", response);
+      
+      let locationsData = [];
+      if (response.data && response.data.data) {
+        locationsData = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        locationsData = response.data;
+      }
+      
+      if (!Array.isArray(locationsData)) {
+        console.error("Locations data is not an array:", locationsData);
+        locationsData = [];
+      }
+      
+      setLocations(locationsData);
+      
+    } catch (err) {
+      console.error("Error fetching locations:", err);
+      let errorMessage = "Gagal memuat data lokasi.";
+      if (err.response) {
+        if (err.response.status === 403) {
+          errorMessage = "Anda tidak memiliki izin untuk mengakses data lokasi.";
+        } else if (err.response.data && err.response.data.message) {
+          errorMessage = err.response.data.message;
+        }
+      }
+      setError(errorMessage);
+    } finally {
+      setLoadingLocations(false);
+    }
+  };
+
+  // Fetch buildings (level 2) ketika location dipilih
+  const fetchBuildingsForLocation = async (locationId, callback = null) => {
+    if (!locationId) {
+      setBuildings([]);
+      setFloors([]);
+      setRooms([]);
+      return;
+    }
+
+    try {
+      setLoadingBuildings(true);
+      
+      const response = await api2.get(`/api/locations/${locationId}/getOneLevelChildren`);
+      
+      console.log("Buildings response for location", locationId, ":", response);
       
       let buildingsData = [];
       if (response.data && response.data.data) {
@@ -549,28 +227,28 @@ const UpdatePengadaan = () => {
       
       setBuildings(buildingsData);
       
-    } catch (err) {
-      console.error("Error fetching buildings:", err);
-      let errorMessage = "Gagal memuat data gedung.";
-      if (err.response) {
-        if (err.response.status === 403) {
-          errorMessage = "Anda tidak memiliki izin untuk mengakses data lokasi.";
-        } else if (err.response.data && err.response.data.message) {
-          errorMessage = err.response.data.message;
-        }
+      // Clear child data
+      setFloors([]);
+      setRooms([]);
+      
+      // Execute callback jika ada
+      if (callback && typeof callback === 'function') {
+        await callback();
       }
-      setError(errorMessage);
+      
+    } catch (err) {
+      console.error(`Error fetching buildings for location ${locationId}:`, err);
+      setBuildings([]);
     } finally {
       setLoadingBuildings(false);
     }
   };
 
-  // Fetch floors (level 2) ketika building dipilih
-  const fetchFloors = async (buildingId, callback = null) => {
+  // Fetch floors (level 3) ketika building dipilih
+  const fetchFloorsForBuilding = async (buildingId, callback = null) => {
     if (!buildingId) {
       setFloors([]);
       setRooms([]);
-      setSubLocations([]);
       return;
     }
 
@@ -597,7 +275,6 @@ const UpdatePengadaan = () => {
       
       // Clear child data
       setRooms([]);
-      setSubLocations([]);
       
       // Execute callback jika ada
       if (callback && typeof callback === 'function') {
@@ -607,24 +284,21 @@ const UpdatePengadaan = () => {
     } catch (err) {
       console.error(`Error fetching floors for building ${buildingId}:`, err);
       setFloors([]);
-      setError("Gagal memuat data lantai untuk gedung ini.");
     } finally {
       setLoadingFloors(false);
     }
   };
-  // Fetch rooms (level 3) ketika floor dipilih
-  const fetchRooms = async (floorId, callback = null) => {
+
+  // Fetch rooms (level 4) ketika floor dipilih
+  const fetchRoomsForFloor = async (floorId, callback = null) => {
     if (!floorId) {
       setRooms([]);
-      setSubLocations([]);
       return;
     }
 
     try {
       setLoadingRooms(true);
-      setRooms([]);
-      setSubLocations([]);
-
+      
       const response = await api2.get(`/api/locations/${floorId}/getOneLevelChildren`);
       
       console.log("Rooms response for floor", floorId, ":", response);
@@ -644,59 +318,217 @@ const UpdatePengadaan = () => {
       setRooms(roomsData);
       
       // Execute callback jika ada
-      if (callback) {
-        callback();
+      if (callback && typeof callback === 'function') {
+        await callback();
       }
       
     } catch (err) {
       console.error(`Error fetching rooms for floor ${floorId}:`, err);
       setRooms([]);
-      setError("Gagal memuat data ruangan untuk lantai ini.");
     } finally {
       setLoadingRooms(false);
     }
   };
 
-  // Fetch sub-locations (level 4) ketika room dipilih
-  const fetchSubLocations = async (roomId, callback = null) => {
-    if (!roomId) {
-      setSubLocations([]);
-      return;
-    }
-
+  const fetchProcurementData = async () => {
     try {
-      setLoadingSubLocations(true);
-      setSubLocations([]);
+      setFetchLoading(true);
+      setError("");
+      
+      // Gunakan procurementService untuk konsistensi
+      const response = await procurementService.getProcurementById(id);
+      
+      console.log("Procurement API Response:", response);
+      
+      // Cek struktur response berdasarkan service
+      let procurementData;
+      if (response.data) {
+        procurementData = response.data;
+      } else {
+        procurementData = response;
+      }
+      
+      console.log("Procurement Data:", procurementData);
+      
+      if (!procurementData) {
+        throw new Error("Data pengadaan tidak ditemukan");
+      }
+      
+      // Pastikan procurement_item ada
+      const procurementItem = procurementData.procurement_item || procurementData;
+      
+      // Set current image jika ada
+      if (procurementItem?.image) {
+        let imageUrl = procurementItem.image;
+        
+        // Handle berbagai format image path
+        if (imageUrl.startsWith('http')) {
+          setCurrentImage(imageUrl);
+        } else if (imageUrl.startsWith('storage/')) {
+          setCurrentImage(imageUrl);
+        } else if (imageUrl.startsWith('assets/')) {
+          setCurrentImage(`storage/${imageUrl}`);
+        } else {
+          setCurrentImage(`storage/assets/procurements/${imageUrl}`);
+        }
+        setHasExistingImage(true);
+      } else {
+        setCurrentImage("");
+        setHasExistingImage(false);
+      }
 
-      const response = await api2.get(`/api/locations/${roomId}/getOneLevelChildren`);
+      // Set form data awal
+      const initialFormData = {
+        category_id: procurementItem?.category?.id?.toString() || "",
+        supplier_id: procurementItem?.supplier?.id?.toString() || "",
+        location_id: procurementItem?.location?.id?.toString() || "",
+        item_name: procurementItem?.item_name || "",
+        image: null,
+        description: procurementItem?.description || "",
+        quantity: procurementItem?.quantity?.toString() || "1",
+        price: procurementItem?.price?.toString() || "",
+        is_maintainable: procurementItem?.is_maintainable || 0,
+        useful_life: procurementItem?.useful_life?.toString() || "",
+        notes: procurementItem?.notes || "",
+        // Lokasi dengan 4 level:
+        location_level1: "",
+        location_level2: "",
+        location_level3: "",
+        location_level4: "",
+      };
+
+      console.log("Initial Form Data:", initialFormData);
+      setFormData(initialFormData);
+
+      // Bangun hierarki lokasi dari data nested
+      if (procurementItem?.location) {
+        await buildLocationHierarchyFromNested(procurementItem.location);
+      }
+
+    } catch (err) {
+      console.error("Error fetching procurement:", err);
       
-      console.log("Sub-locations response for room", roomId, ":", response);
+      let errorMessage = "Gagal memuat data pengadaan. ";
       
-      let subLocationsData = [];
-      if (response.data && response.data.data) {
-        subLocationsData = response.data.data;
-      } else if (Array.isArray(response.data)) {
-        subLocationsData = response.data;
+      if (err.response) {
+        console.error("Response error details:", {
+          status: err.response.status,
+          data: err.response.data
+        });
+        
+        if (err.response.status === 404) {
+          errorMessage = "Data pengadaan tidak ditemukan.";
+        } else if (err.response.status === 500) {
+          errorMessage = "Terjadi kesalahan server. ";
+          if (err.response.data?.message) {
+            errorMessage += err.response.data.message;
+          }
+        } else if (err.response.data?.message) {
+          errorMessage += err.response.data.message;
+        }
+      } else if (err.request) {
+        errorMessage += "Tidak dapat terhubung ke server.";
+      } else {
+        errorMessage += err.message;
       }
       
-      if (!Array.isArray(subLocationsData)) {
-        console.error("Sub-locations data is not an array:", subLocationsData);
-        subLocationsData = [];
+      setError(errorMessage);
+      
+      // Navigasi kembali jika data tidak ditemukan
+      if (err.response?.status === 404) {
+        setTimeout(() => {
+          navigate("/pengadaan");
+        }, 3000);
+      }
+    } finally {
+      setFetchLoading(false);
+    }
+  };
+
+  // Fungsi untuk membangun hierarki lokasi dari data nested
+  const buildLocationHierarchyFromNested = async (locationData) => {
+    try {
+      console.log("Building hierarchy from nested location:", locationData);
+      
+      if (!locationData || !locationData.id) {
+        console.log("No location data available");
+        return;
       }
       
-      setSubLocations(subLocationsData);
+      // Traverse ke atas untuk mendapatkan semua parent
+      const levels = [];
+      let current = locationData;
       
-      // Execute callback jika ada
-      if (callback) {
-        callback();
+      while (current) {
+        levels.unshift({
+          id: current.id.toString(),
+          name: current.name,
+          level: levels.length + 1
+        });
+        current = current.parent;
+      }
+      
+      console.log("Levels found:", levels);
+      
+      // Map levels ke formData
+      const updates = {};
+      
+      // Level 1: Lokasi (Kampus Pusat) - index 0
+      if (levels.length >= 1) {
+        updates.location_level1 = levels[0].id;
+      }
+      
+      // Level 2: Gedung (Gedung A) - index 1
+      if (levels.length >= 2) {
+        updates.location_level2 = levels[1].id;
+      }
+      
+      // Level 3: Lantai (Lantai 1) - index 2
+      if (levels.length >= 3) {
+        updates.location_level3 = levels[2].id;
+      }
+      
+      // Level 4: Ruangan (Ruang 101) - index 3
+      if (levels.length >= 4) {
+        updates.location_level4 = levels[3].id;
+        updates.location_id = levels[3].id;
+      } else if (levels.length === 3) {
+        // Jika hanya 3 level (tidak ada ruangan), gunakan lantai sebagai location_id
+        updates.location_id = levels[2].id;
+      }
+      
+      console.log("Form updates:", updates);
+      
+      // Update formData
+      setFormData(prev => ({ ...prev, ...updates }));
+      
+      // Fetch dropdown data berdasarkan levels
+      if (levels.length >= 1) {
+        // Level 1 sudah di-fetch oleh fetchLocations()
+        // Fetch buildings untuk level 1
+        if (levels.length >= 2) {
+          await fetchBuildingsForLocation(parseInt(levels[0].id));
+          
+          // Fetch floors untuk level 2
+          if (levels.length >= 3) {
+            await fetchFloorsForBuilding(parseInt(levels[1].id));
+            
+            // Fetch rooms untuk level 3
+            if (levels.length >= 4) {
+              await fetchRoomsForFloor(parseInt(levels[2].id));
+            }
+          }
+        }
       }
       
     } catch (err) {
-      console.error(`Error fetching sub-locations for room ${roomId}:`, err);
-      setSubLocations([]);
-      setError("Gagal memuat data sub-lokasi untuk ruangan ini.");
-    } finally {
-      setLoadingSubLocations(false);
+      console.error("Error building location hierarchy from nested:", err);
+      
+      // Fallback: set location_id saja
+      setFormData(prev => ({ 
+        ...prev, 
+        location_id: locationData.id.toString() 
+      }));
     }
   };
 
@@ -742,13 +574,54 @@ const UpdatePengadaan = () => {
     };
   }, [id]);
 
+  // Debug form data changes
+  useEffect(() => {
+    console.log("FormData updated:", {
+      location_level1: formData.location_level1,
+      location_level2: formData.location_level2,
+      location_level3: formData.location_level3,
+      location_level4: formData.location_level4,
+      location_id: formData.location_id,
+      locations: locations.length,
+      buildings: buildings.length,
+      floors: floors.length,
+      rooms: rooms.length
+    });
+  }, [formData, locations, buildings, floors, rooms]);
+
   const handleChange = (e) => {
     const { name, value, type, files } = e.target;
 
     if (type === "file") {
-      // ... handle file upload ...
+      const file = files[0];
+
+      // Validasi ukuran file (max 2MB = 2048KB)
+      if (file && file.size > 2 * 1024 * 1024) {
+        setImageError("Ukuran file harus kurang dari 2MB");
+        setFormData((prev) => ({
+          ...prev,
+          image: null,
+        }));
+        e.target.value = "";
+      } else {
+        setImageError("");
+        setFormData((prev) => ({
+          ...prev,
+          [name]: file,
+        }));
+        // Reset existing image jika upload file baru
+        if (file) {
+          setCurrentImage("");
+          setHasExistingImage(false);
+        }
+      }
     } else if (type === "checkbox") {
-      // ... handle checkbox ...
+      const isChecked = e.target.checked;
+      setFormData((prev) => ({
+        ...prev,
+        [name]: isChecked ? 1 : 0,
+        useful_life: isChecked ? prev.useful_life : "",
+      }));
     } else {
       // Untuk input biasa
       if (name === "location_level1") {
@@ -762,7 +635,7 @@ const UpdatePengadaan = () => {
           location_id: "",
         }));
         // Fetch gedung untuk lokasi ini
-        fetchBuildingsForLocation(value); // Anda perlu membuat fungsi ini
+        fetchBuildingsForLocation(value);
       } 
       else if (name === "location_level2") {
         setFormData(prev => ({
@@ -773,7 +646,7 @@ const UpdatePengadaan = () => {
           location_id: "",
         }));
         // Fetch lantai untuk gedung ini
-        fetchFloorsForBuilding(value); // Ubah nama fungsi
+        fetchFloorsForBuilding(value);
       } 
       else if (name === "location_level3") {
         setFormData(prev => ({
@@ -783,7 +656,7 @@ const UpdatePengadaan = () => {
           location_id: value, // Set sebagai location_id sementara
         }));
         // Fetch ruangan untuk lantai ini
-        fetchRoomsForFloor(value); // Ubah nama fungsi
+        fetchRoomsForFloor(value);
       } 
       else if (name === "location_level4") {
         setFormData(prev => ({
@@ -816,7 +689,7 @@ const UpdatePengadaan = () => {
 
     // Validasi lokasi
     if (!formData.location_id) {
-      setError("Harap pilih lokasi lengkap (Gedung, Lantai, dan Ruangan)");
+      setError("Harap pilih lokasi lengkap (Lokasi, Gedung, Lantai, dan Ruangan)");
       setLoading(false);
       return;
     }
@@ -1085,17 +958,17 @@ const UpdatePengadaan = () => {
                             onChange={handleChange}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
                             required
-                            disabled={loadingBuildings}
+                            disabled={loadingLocations}
                           >
                             <option value="">Pilih Lokasi</option>
-                            {buildings.map((location) => (
+                            {locations.map((location) => (
                               <option key={location.id} value={location.id}>
                                 {location.name || `Lokasi ${location.id}`}
                               </option>
                             ))}
                           </select>
                           <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingBuildings && (
+                          {loadingLocations && (
                             <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
                           )}
                         </div>
@@ -1113,17 +986,17 @@ const UpdatePengadaan = () => {
                             onChange={handleChange}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
                             required
-                            disabled={!formData.location_level1 || loadingFloors}
+                            disabled={!formData.location_level1 || loadingBuildings}
                           >
                             <option value="">Pilih Gedung</option>
-                            {floors.map((floor) => ( // Ini sebenarnya adalah gedung, rename nanti
-                              <option key={floor.id} value={floor.id}>
-                                {floor.name || `Gedung ${floor.id}`}
+                            {buildings.map((building) => (
+                              <option key={building.id} value={building.id}>
+                                {building.name || `Gedung ${building.id}`}
                               </option>
                             ))}
                           </select>
                           <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingFloors && (
+                          {loadingBuildings && (
                             <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
                           )}
                         </div>
@@ -1141,17 +1014,17 @@ const UpdatePengadaan = () => {
                             onChange={handleChange}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
                             required
-                            disabled={!formData.location_level2 || loadingRooms}
+                            disabled={!formData.location_level2 || loadingFloors}
                           >
                             <option value="">Pilih Lantai</option>
-                            {rooms.map((room) => ( // Ini sebenarnya adalah lantai, rename nanti
-                              <option key={room.id} value={room.id}>
-                                {room.name || `Lantai ${room.id}`}
+                            {floors.map((floor) => (
+                              <option key={floor.id} value={floor.id}>
+                                {floor.name || `Lantai ${floor.id}`}
                               </option>
                             ))}
                           </select>
                           <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingRooms && (
+                          {loadingFloors && (
                             <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
                           )}
                         </div>
@@ -1169,13 +1042,13 @@ const UpdatePengadaan = () => {
                             onChange={handleChange}
                             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
                             required
-                            disabled={!formData.location_level3 || loadingSubLocations}
+                            disabled={!formData.location_level3 || loadingRooms}
                           >
                             <option value="">Pilih Ruangan</option>
-                            {subLocations.length > 0 ? (
-                              subLocations.map((subLoc) => ( // Ini sebenarnya adalah ruangan
-                                <option key={subLoc.id} value={subLoc.id}>
-                                  {subLoc.name || `Ruangan ${subLoc.id}`}
+                            {rooms.length > 0 ? (
+                              rooms.map((room) => (
+                                <option key={room.id} value={room.id}>
+                                  {room.name || `Ruangan ${room.id}`}
                                 </option>
                               ))
                             ) : (
@@ -1185,7 +1058,7 @@ const UpdatePengadaan = () => {
                             )}
                           </select>
                           <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingSubLocations && (
+                          {loadingRooms && (
                             <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
                           )}
                         </div>
@@ -1203,10 +1076,10 @@ const UpdatePengadaan = () => {
                         </div>
                         <div className="text-sm text-blue-700 mt-1">
                           {(() => {
-                            const location1 = buildings.find(b => b.id === parseInt(formData.location_level1));
-                            const location2 = floors.find(f => f.id === parseInt(formData.location_level2));
-                            const location3 = rooms.find(r => r.id === parseInt(formData.location_level3));
-                            const location4 = subLocations.find(s => s.id === parseInt(formData.location_level4));
+                            const location1 = locations.find(l => l.id === parseInt(formData.location_level1));
+                            const location2 = buildings.find(b => b.id === parseInt(formData.location_level2));
+                            const location3 = floors.find(f => f.id === parseInt(formData.location_level3));
+                            const location4 = rooms.find(r => r.id === parseInt(formData.location_level4));
                             
                             let locationPath = [];
                             if (location1) locationPath.push(location1.name || `Lokasi ${location1.id}`);
@@ -1220,16 +1093,16 @@ const UpdatePengadaan = () => {
                       </div>
                     )}
 
-                    {/* Hidden input untuk location_id - akan diisi dengan ID level terakhir */}
+                    {/* Hidden input untuk location_id */}
                     <input
                       type="hidden"
                       name="location_id"
-                      value={formData.location_level4 || formData.location_level3 || formData.location_level2 || ""}
+                      value={formData.location_id || ""}
                       required
                     />
                     
                     {/* Validation message */}
-                    {!formData.location_level4 && (
+                    {!formData.location_id && (
                       <p className="text-sm text-rose-600 mt-2">
                         Silakan pilih lokasi, gedung, lantai, dan ruangan untuk menentukan lokasi
                       </p>
@@ -1368,7 +1241,14 @@ const UpdatePengadaan = () => {
                               e.target.src = "https://via.placeholder.com/128x128?text=Gambar+Tidak+Tersedia";
                             }}
                           />
-                          {/* ... rest of the code ... */}
+                          <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            className="flex items-center space-x-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span className="text-sm font-medium">Hapus Gambar</span>
+                          </button>
                         </div>
                       </div>
                     )}
