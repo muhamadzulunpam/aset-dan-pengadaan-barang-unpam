@@ -9,6 +9,11 @@ import Dashboard from "./components/pages/dashboard/Dashboard";
 import Pengadaan from "./components/pages/pengadaan/Pengadaan";
 import CreatePengadaan from "./components/pages/pengadaan/Create";
 import UpdatePengadaan from "./components/pages/pengadaan/Update";
+import ViewPengadaan from "./components/pages/pengadaan/View";
+import Assets from "./components/pages/assets/Index";
+import CreateAssets from "./components/pages/assets/Create";
+import UpdateAssets from "./components/pages/assets/Update";
+import ViewAssets from "./components/pages/assets/View";
 import "./index.css";
 
 function App() {
@@ -44,8 +49,9 @@ function App() {
                 </ProtectedRoute>
               } 
             />
+            {/* route pengadaan awal*/}
             <Route 
-              path="/pengadaan" 
+              path="/procurements" 
               element={
                 <ProtectedRoute>
                   <Pengadaan />
@@ -53,7 +59,7 @@ function App() {
               } 
             />
             <Route 
-              path="/pengadaan/create" 
+              path="/procurements/create" 
               element={
                 <ProtectedRoute>
                   <CreatePengadaan />
@@ -61,13 +67,58 @@ function App() {
               } 
             />
             <Route 
-              path="/pengadaan/update/:id" 
+              path="/procurements/update/:id" 
               element={
                 <ProtectedRoute>
                   <UpdatePengadaan />
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/procurements/view/:id" 
+              element={
+                <ProtectedRoute>
+                  <ViewPengadaan />
+                </ProtectedRoute>
+              } 
+            />
+            {/* route pengadaan akhir*/}
+            
+            {/* route assets awal*/}
+            <Route 
+              path="/assets" 
+              element={
+                <ProtectedRoute>
+                  <Assets />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/assets/create" 
+              element={
+                <ProtectedRoute>
+                  <CreateAssets />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/assets/update/:code" 
+              element={
+                <ProtectedRoute>
+                  <UpdateAssets />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/assets/view/:code" 
+              element={
+                <ProtectedRoute>
+                  <ViewAssets />
+                </ProtectedRoute>
+              } 
+            />
+            {/* route assets akhir*/}
+
 
             {/* Fallback route */}
             <Route path="*" element={<div>404 - Page Not Found</div>} />

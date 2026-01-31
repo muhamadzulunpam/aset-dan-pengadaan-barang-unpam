@@ -82,8 +82,14 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     },
     { 
       icon: ShoppingCart, 
-      label: 'Pengadaan', 
-      path: '/pengadaan',
+      label: 'Procurements', 
+      path: '/procurements',
+      badge: null 
+    },
+    { 
+      icon: Package, 
+      label: 'Assets', 
+      path: '/assets',
       badge: null 
     },
     { 

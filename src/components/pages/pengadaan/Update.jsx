@@ -437,7 +437,7 @@ const UpdatePengadaan = () => {
       // Navigasi kembali jika data tidak ditemukan
       if (err.response?.status === 404) {
         setTimeout(() => {
-          navigate("/pengadaan");
+          navigate("/procurements");
         }, 3000);
       }
     } finally {
@@ -739,7 +739,7 @@ const UpdatePengadaan = () => {
       setSuccess(response.message || "Pengadaan berhasil diupdate!");
       
       setTimeout(() => {
-        navigate("/pengadaan");
+        navigate("/procurements");
       }, 2000);
       
     } catch (err) {
@@ -817,7 +817,7 @@ const UpdatePengadaan = () => {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <button
-                    onClick={() => navigate("/pengadaan")}
+                    onClick={() => navigate("/procurements")}
                     className="flex items-center space-x-2 text-slate-600 hover:text-slate-800 transition-colors"
                   >
                     <ArrowLeft className="w-5 h-5" />
@@ -1330,7 +1330,7 @@ const UpdatePengadaan = () => {
               <div className="flex items-center justify-between pt-6">
                 <button
                   type="button"
-                  onClick={() => navigate("/pengadaan")}
+                  onClick={() => navigate("/procurements")}
                   className="px-8 py-3 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all duration-300"
                 >
                   Batal

@@ -1,4 +1,4 @@
-// src/pages/procurements/Create.js
+// src/pages/assets/Create.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -7,16 +7,23 @@ import {
   Upload,
   Package,
   Building,
-  Truck,
+  Tag,
   MapPin,
   ChevronDown,
   Loader,
+  DollarSign,
+  Calendar,
+  Shield,
+  Info,
+  Check,
+  X,
+  Truck,
 } from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
 import api2 from "../../../store/api2";
 
-const CreatePengadaan = () => {
+const CreateAsset = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -46,14 +53,16 @@ const CreatePengadaan = () => {
     category_id: "",
     supplier_id: "",
     location_id: "",
-    item_name: "",
+    name: "",
     image: null,
     description: "",
-    quantity: "",
     price: "",
+    code: "",
+    is_available_in_the_room: 1,
     is_maintainable: 0,
-    useful_life: null,
-    notes: "",
+    useful_life: "",
+    status: "available",
+    is_bulk_insert: 0,
     // Lokasi
     building_id: "",
     floor_id: "",
@@ -68,7 +77,7 @@ const CreatePengadaan = () => {
         // Fetch categories dari API
         await fetchCategories();
         
-        // Fetch suppliers dari API (ganti dengan endpoint yang sesuai)
+        // Fetch suppliers dari API
         await fetchSuppliers();
 
         // Fetch building locations dari API
@@ -89,19 +98,16 @@ const CreatePengadaan = () => {
       setLoadingCategories(true);
       const response = await api2.get("/api/categories/all");
       
-      console.log("Categories response:", response);
+      console.log("Asset Categories response:", response);
       
       let categoriesData = [];
       
-      // Handle response berdasarkan struktur data dari Postman
+      // Handle response berdasarkan struktur data
       if (response.data && response.data.data) {
-        // Jika ada response.data.data (sesuai dengan format Postman)
         categoriesData = response.data.data;
       } else if (response.data && response.data.meta && response.data.meta.code === 200) {
-        // Jika response sesuai dengan format meta + data
         categoriesData = response.data.data || [];
       } else if (Array.isArray(response.data)) {
-        // Jika response langsung array
         categoriesData = response.data;
       }
       
@@ -113,8 +119,8 @@ const CreatePengadaan = () => {
       setCategories(categoriesData);
       
     } catch (err) {
-      console.error("Error fetching categories:", err);
-      let errorMessage = "Gagal memuat data kategori.";
+      console.error("Error fetching asset categories:", err);
+      let errorMessage = "Gagal memuat data kategori asset.";
       if (err.response) {
         if (err.response.status === 403) {
           errorMessage = "Anda tidak memiliki izin untuk mengakses data kategori.";
@@ -128,19 +134,17 @@ const CreatePengadaan = () => {
     }
   };
 
-  // Fetch suppliers dari backend (ganti dengan endpoint yang sesuai)
+  // Fetch suppliers dari backend
   const fetchSuppliers = async () => {
     try {
       setLoadingSuppliers(true);
-      // Ganti dengan endpoint supplier yang sesuai di backend Anda
-      // Contoh: const response = await api2.get("/api/suppliers");
-      const response = await api2.get("/api/suppliers/all");
+      const response = await api2.get("/api/suppliers");
       
       console.log("Suppliers response:", response);
       
       let suppliersData = [];
       
-      // Handle response (sesuaikan dengan struktur dari backend)
+      // Handle response
       if (response.data && response.data.data) {
         suppliersData = response.data.data;
       } else if (Array.isArray(response.data)) {
@@ -156,7 +160,7 @@ const CreatePengadaan = () => {
       
     } catch (err) {
       console.error("Error fetching suppliers:", err);
-     
+      // Tidak set error karena supplier opsional
     } finally {
       setLoadingSuppliers(false);
     }
@@ -211,7 +215,6 @@ const CreatePengadaan = () => {
 
     try {
       setLoadingFloors(true);
-      // Reset level 3 dan 4
       setRooms([]);
       setSubLocations([]);
       setFormData(prev => ({
@@ -222,7 +225,6 @@ const CreatePengadaan = () => {
         location_id: ""
       }));
 
-      // Ganti dengan endpoint yang sesuai untuk mengambil lantai berdasarkan building
       const response = await api2.get(`/api/locations/${buildingId}/getOneLevelChildren`);
       
       console.log("Floors response for building", buildingId, ":", response);
@@ -260,7 +262,6 @@ const CreatePengadaan = () => {
 
     try {
       setLoadingRooms(true);
-      // Reset level 4
       setSubLocations([]);
       setFormData(prev => ({
         ...prev,
@@ -269,7 +270,6 @@ const CreatePengadaan = () => {
         location_id: ""
       }));
 
-      // Ganti dengan endpoint yang sesuai untuk mengambil ruangan berdasarkan lantai
       const response = await api2.get(`/api/locations/${floorId}/getOneLevelChildren`);
       
       console.log("Rooms response for floor", floorId, ":", response);
@@ -312,7 +312,6 @@ const CreatePengadaan = () => {
         location_id: ""
       }));
 
-      // Ganti dengan endpoint yang sesuai untuk mengambil sub-lokasi berdasarkan ruangan
       const response = await api2.get(`/api/locations/${roomId}/getOneLevelChildren`);
       
       console.log("Sub-locations response for room", roomId, ":", response);
@@ -365,7 +364,8 @@ const CreatePengadaan = () => {
       setFormData((prev) => ({
         ...prev,
         [name]: e.target.checked ? 1 : 0,
-        useful_life: e.target.checked ? prev.useful_life : null,
+        // Reset useful_life jika is_maintainable false
+        ...(name === "is_maintainable" && !e.target.checked ? { useful_life: "" } : {}),
       }));
     } else {
       const newFormData = {
@@ -410,11 +410,10 @@ const CreatePengadaan = () => {
     // Validasi form
     const requiredFields = {
       category_id: "Kategori",
-      supplier_id: "Supplier",
+      name: "Nama Asset",
       location_id: "Lokasi",
-      item_name: "Nama Item",
-      quantity: "Quantity",
       price: "Harga",
+      status: "Status",
     };
 
     const missingFields = [];
@@ -431,7 +430,7 @@ const CreatePengadaan = () => {
     }
 
     if (formData.is_maintainable && !formData.useful_life) {
-      setError("Masa pakai harus diisi untuk item yang dapat di-maintain");
+      setError("Masa pakai harus diisi untuk asset yang dapat di-maintain");
       setLoading(false);
       return;
     }
@@ -446,56 +445,79 @@ const CreatePengadaan = () => {
     try {
       console.log("Form data sebelum dikirim:", formData);
 
-      // Create FormData
+      // Create FormData untuk mengirim file
       const submitData = new FormData();
       submitData.append("category_id", parseInt(formData.category_id));
-      submitData.append("supplier_id", parseInt(formData.supplier_id));
+      
+      if (formData.supplier_id) {
+        submitData.append("supplier_id", parseInt(formData.supplier_id));
+      }
+      
       submitData.append("location_id", parseInt(formData.location_id));
-      submitData.append("item_name", formData.item_name);
+      submitData.append("name", formData.name);
       submitData.append("description", formData.description || "");
-      submitData.append("quantity", parseInt(formData.quantity));
       submitData.append("price", parseFloat(formData.price));
+      submitData.append("code", formData.code || "");
+      submitData.append("is_available_in_the_room", formData.is_available_in_the_room);
       submitData.append("is_maintainable", formData.is_maintainable);
+      submitData.append("status", formData.status);
+      submitData.append("is_bulk_insert", formData.is_bulk_insert);
 
       if (formData.is_maintainable && formData.useful_life) {
         submitData.append("useful_life", parseInt(formData.useful_life));
       }
-
-      submitData.append("notes", formData.notes || "");
 
       if (formData.image) {
         submitData.append("image", formData.image);
       }
 
       // Log data yang akan dikirim
-      console.log("Data yang dikirim:");
+      console.log("Data yang dikirim ke API:");
       for (let [key, value] of submitData.entries()) {
         console.log(key, value);
       }
 
-      const response = await api2.post("/api/procurements", submitData, {
+      // Kirim request ke API assets
+      const response = await api2.post("/api/assets", submitData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      console.log("✅ SUCCESS:", response);
-      setSuccess("Pengadaan berhasil dibuat!");
+      console.log("✅ SUCCESS Response:", response);
+      setSuccess("Asset berhasil dibuat!");
 
+      // Redirect ke halaman assets setelah 2 detik
       setTimeout(() => {
-        navigate("/procurements");
+        navigate("/assets");
       }, 2000);
     } catch (err) {
-      console.error("Error detail:", err);
+      console.error("❌ Error detail:", err);
       
-      let errorMessage = "Gagal membuat pengadaan";
+      let errorMessage = "Gagal membuat asset";
       
       if (err.response) {
         console.error("Response status:", err.response.status);
         console.error("Response data:", err.response.data);
         
-        if (err.response.status === 403) {
-          errorMessage = "Anda tidak memiliki izin untuk membuat pengadaan.";
+        if (err.response.status === 422) {
+          // Validation errors dari Laravel
+          if (err.response.data.errors) {
+            const errors = err.response.data.errors;
+            const errorMessages = [];
+            
+            for (const field in errors) {
+              if (errors[field]) {
+                errorMessages.push(...errors[field]);
+              }
+            }
+            
+            errorMessage = errorMessages.join(", ");
+          } else if (err.response.data.message) {
+            errorMessage = err.response.data.message;
+          }
+        } else if (err.response.status === 403) {
+          errorMessage = "Anda tidak memiliki izin untuk membuat asset.";
         } else if (err.response.data && err.response.data.message) {
           errorMessage = err.response.data.message;
         } else if (err.response.data && err.response.data.error) {
@@ -516,6 +538,7 @@ const CreatePengadaan = () => {
   };
 
   const formatCurrency = (amount) => {
+    if (!amount) return "Rp 0";
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
@@ -534,14 +557,14 @@ const CreatePengadaan = () => {
         <Header setSidebarOpen={setSidebarOpen} />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-slate-50 via-white to-cyan-50/30">
+        <main className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-slate-50 via-white to-emerald-50/30">
           <div className="max-w-6xl mx-auto">
             {/* Page Header */}
             <div className="mb-8 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-4">
                   <button
-                    onClick={() => navigate("/procurements")}
+                    onClick={() => navigate("/assets")}
                     className="flex items-center space-x-2 text-slate-600 hover:text-slate-800 transition-colors"
                   >
                     <ArrowLeft className="w-5 h-5" />
@@ -549,15 +572,15 @@ const CreatePengadaan = () => {
                   </button>
                   <div className="w-px h-6 bg-slate-300"></div>
                   <h1 className="text-3xl font-bold text-slate-900">
-                    Buat Pengadaan Baru
+                    Tambah Asset Baru
                   </h1>
                 </div>
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center">
                   <Package className="w-6 h-6 text-white" />
                 </div>
               </div>
               <p className="text-slate-600 text-lg">
-                Isi formulir berikut untuk membuat pengadaan baru
+                Isi formulir berikut untuk menambahkan asset baru ke inventory
               </p>
             </div>
 
@@ -600,13 +623,48 @@ const CreatePengadaan = () => {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Informasi Dasar */}
+              {/* Informasi Dasar Asset */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-6">
-                  Informasi Dasar
+                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                  <Info className="w-5 h-5 text-emerald-600 mr-2" />
+                  Informasi Dasar Asset
                 </h2>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Nama Asset */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Nama Asset *
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300"
+                      placeholder="Contoh: Laptop Dell Inspiron 15"
+                      required
+                    />
+                  </div>
+
+                  {/* Kode Asset */}
+                  {/* <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Kode Asset (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      name="code"
+                      value={formData.code}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300"
+                      placeholder="Contoh: AST-TKN-2026-00001"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">
+                      Biarkan kosong untuk generate otomatis
+                    </p>
+                  </div> */}
+
                   {/* Category */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -617,7 +675,7 @@ const CreatePengadaan = () => {
                         name="category_id"
                         value={formData.category_id}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-10"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-10"
                         required
                         disabled={loadingCategories}
                       >
@@ -628,25 +686,24 @@ const CreatePengadaan = () => {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      <Tag className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
                       {loadingCategories && (
-                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
                       )}
                     </div>
                   </div>
 
-                  {/* Supplier */}
+                  {/* Supplier (Opsional) */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Supplier *
+                      Supplier
                     </label>
                     <div className="relative">
                       <select
                         name="supplier_id"
                         value={formData.supplier_id}
                         onChange={handleChange}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-10"
-                        required
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-10"
                         disabled={loadingSuppliers}
                       >
                         <option value="">Pilih Supplier</option>
@@ -656,222 +713,11 @@ const CreatePengadaan = () => {
                           </option>
                         ))}
                       </select>
-                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      <Truck className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
                       {loadingSuppliers && (
-                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
                       )}
                     </div>
-                  </div>
-
-                  {/* Lokasi - 4 Level Dropdown */}
-                  <div className="lg:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Lokasi *
-                    </label>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                      {/* Level 1: Building */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          Lokasi *
-                        </label>
-                        <div className="relative">
-                          <select
-                            name="building_id"
-                            value={formData.building_id}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
-                            required
-                            disabled={loadingBuildings}
-                          >
-                            <option value="">Pilih Gedung</option>
-                            {buildings.map((building) => (
-                              <option key={building.id} value={building.id}>
-                                {building.name || `Gedung ${building.id}`}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingBuildings && (
-                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Level 2: Floor */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          Gedung *
-                        </label>
-                        <div className="relative">
-                          <select
-                            name="floor_id"
-                            value={formData.floor_id}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
-                            required
-                            disabled={!formData.building_id || loadingFloors}
-                          >
-                            <option value="">Pilih Lantai</option>
-                            {floors.map((floor) => (
-                              <option key={floor.id} value={floor.id}>
-                                {floor.name || `Lantai ${floor.id}`}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingFloors && (
-                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Level 3: Room */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          Lantai *
-                        </label>
-                        <div className="relative">
-                          <select
-                            name="room_id"
-                            value={formData.room_id}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
-                            required
-                            disabled={!formData.floor_id || loadingRooms}
-                          >
-                            <option value="">Pilih Ruangan</option>
-                            {rooms.map((room) => (
-                              <option key={room.id} value={room.id}>
-                                {room.name || `Ruangan ${room.id}`}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingRooms && (
-                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Level 4: Sub-Location (Opsional) */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          Ruangan
-                        </label>
-                        <div className="relative">
-                          <select
-                            name="sub_location_id"
-                            value={formData.sub_location_id}
-                            onChange={handleChange}
-                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 appearance-none pr-8"
-                            disabled={!formData.room_id || loadingSubLocations}
-                          >
-                            <option value="">Pilih Sub-Lokasi</option>
-                            {subLocations.length > 0 ? (
-                              subLocations.map((subLoc) => (
-                                <option key={subLoc.id} value={subLoc.id}>
-                                  {subLoc.name || `Sub-Lokasi ${subLoc.id}`}
-                                </option>
-                              ))
-                            ) : (
-                              <option value="" disabled>
-                                Tidak ada sub-lokasi
-                              </option>
-                            )}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-                          {loadingSubLocations && (
-                            <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-blue-500" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Lokasi Terpilih */}
-                    {formData.location_id && (
-                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 text-blue-500 mr-2" />
-                          <span className="text-sm font-medium text-blue-800">
-                            Lokasi terpilih:
-                          </span>
-                        </div>
-                        <div className="text-sm text-blue-700 mt-1">
-                          {(() => {
-                            const building = buildings.find(b => b.id === parseInt(formData.building_id));
-                            const floor = floors.find(f => f.id === parseInt(formData.floor_id));
-                            const room = rooms.find(r => r.id === parseInt(formData.room_id));
-                            const subLocation = subLocations.find(s => s.id === parseInt(formData.sub_location_id));
-                            
-                            let locationPath = [];
-                            if (building) locationPath.push(building.name || `Gedung ${building.id}`);
-                            if (floor) locationPath.push(floor.name || `Lantai ${floor.id}`);
-                            if (room) locationPath.push(room.name || `Ruangan ${room.id}`);
-                            if (subLocation) locationPath.push(subLocation.name || `Sub-Lokasi ${subLocation.id}`);
-                            
-                            return locationPath.join(" → ");
-                          })()}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Hidden input untuk location_id */}
-                    <input
-                      type="hidden"
-                      name="location_id"
-                      value={formData.location_id}
-                      required
-                    />
-                    
-                    {/* Validation message */}
-                    {!formData.location_id && (
-                      <p className="text-sm text-rose-600 mt-2">
-                        Silakan pilih gedung, lantai, dan ruangan untuk menentukan lokasi
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Item Name */}
-                  <div className="lg:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Nama Item *
-                    </label>
-                    <input
-                      type="text"
-                      name="item_name"
-                      value={formData.item_name}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="Masukkan nama item"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Detail Item */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                <h2 className="text-xl font-bold text-slate-900 mb-6">
-                  Detail Item
-                </h2>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Quantity */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Quantity *
-                    </label>
-                    <input
-                      type="number"
-                      name="quantity"
-                      value={formData.quantity}
-                      onChange={handleChange}
-                      min="1"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="0"
-                      required
-                    />
                   </div>
 
                   {/* Price */}
@@ -900,44 +746,275 @@ const CreatePengadaan = () => {
                     )}
                   </div>
 
-                  {/* Is Maintainable */}
-                  <div className="lg:col-span-2">
-                    <label className="flex items-center space-x-3">
-                      <input
-                        type="checkbox"
-                        name="is_maintainable"
-                        checked={formData.is_maintainable === 1}
-                        onChange={handleChange}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
-                      />
-                      <span className="text-sm font-medium text-slate-700">
-                        Item dapat di-maintain (memerlukan perawatan)
-                      </span>
+                  {/* Status */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Status *
                     </label>
+                    <div className="relative">
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleChange}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-10"
+                        required
+                      >
+                        <option value="available">Tersedia</option>
+                        <option value="in_transit">Sedang Dipindahkan</option>
+                        <option value="in_use">Digunakan</option>
+                        <option value="in_repair">Dalam Perbaikan</option>
+                        <option value="damaged">Rusak</option>
+                        <option value="lost">Hilang</option>
+                      </select>
+                      <Shield className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lokasi Asset */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                  <MapPin className="w-5 h-5 text-blue-600 mr-2" />
+                  Lokasi Asset
+                </h2>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                  {/* Level 1: Building */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Kampus *
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="building_id"
+                        value={formData.building_id}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-8"
+                        required
+                        disabled={loadingBuildings}
+                      >
+                        <option value="">Pilih Kampus</option>
+                        {buildings.map((building) => (
+                          <option key={building.id} value={building.id}>
+                            {building.name || `Kampus ${building.id}`}
+                          </option>
+                        ))}
+                      </select>
+                      <Building className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingBuildings && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Level 2: Floor */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Gedung *
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="floor_id"
+                        value={formData.floor_id}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-8"
+                        required
+                        disabled={!formData.building_id || loadingFloors}
+                      >
+                        <option value="">Pilih Gedung</option>
+                        {floors.map((floor) => (
+                          <option key={floor.id} value={floor.id}>
+                            {floor.name || `Gedung ${floor.id}`}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingFloors && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Level 3: Room */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Lantai *
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="room_id"
+                        value={formData.room_id}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-8"
+                        required
+                        disabled={!formData.floor_id || loadingRooms}
+                      >
+                        <option value="">Pilih Lantai</option>
+                        {rooms.map((room) => (
+                          <option key={room.id} value={room.id}>
+                            {room.name || `Ruangan ${room.id}`}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingRooms && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Level 4: Ruangan */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Ruangan
+                    </label>
+                    <div className="relative">
+                      <select
+                        name="sub_location_id"
+                        value={formData.sub_location_id}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300 appearance-none pr-8"
+                        disabled={!formData.room_id || loadingSubLocations}
+                      >
+                        <option value="">Pilih Ruangan</option>
+                        {subLocations.length > 0 ? (
+                          subLocations.map((subLoc) => (
+                            <option key={subLoc.id} value={subLoc.id}>
+                              {subLoc.name || `Ruangan ${subLoc.id}`}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>
+                            Tidak ada sub-lokasi
+                          </option>
+                        )}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+                      {loadingSubLocations && (
+                        <Loader className="w-4 h-4 absolute right-8 top-1/2 transform -translate-y-1/2 animate-spin text-emerald-500" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lokasi Terpilih */}
+                {formData.location_id && (
+                  <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-center">
+                      <MapPin className="w-4 h-4 text-emerald-600 mr-2" />
+                      <span className="text-sm font-medium text-emerald-800">
+                        Lokasi terpilih:
+                      </span>
+                    </div>
+                    <div className="text-sm text-emerald-700 mt-1">
+                      {(() => {
+                        const building = buildings.find(b => b.id === parseInt(formData.building_id));
+                        const floor = floors.find(f => f.id === parseInt(formData.floor_id));
+                        const room = rooms.find(r => r.id === parseInt(formData.room_id));
+                        const subLocation = subLocations.find(s => s.id === parseInt(formData.sub_location_id));
+                        
+                        let locationPath = [];
+                        if (building) locationPath.push(building.name || `Gedung ${building.id}`);
+                        if (floor) locationPath.push(floor.name || `Lantai ${floor.id}`);
+                        if (room) locationPath.push(room.name || `Ruangan ${room.id}`);
+                        if (subLocation) locationPath.push(subLocation.name || `Sub-Lokasi ${subLocation.id}`);
+                        
+                        return locationPath.join(" → ");
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Hidden input untuk location_id */}
+                <input
+                  type="hidden"
+                  name="location_id"
+                  value={formData.location_id}
+                  required
+                />
+                
+                {/* Validation message */}
+                {!formData.location_id && (
+                  <p className="text-sm text-rose-600 mt-2">
+                    Silakan pilih Kampus, Gedung, lantai, dan ruangan untuk menentukan lokasi
+                  </p>
+                )}
+              </div>
+
+              {/* Maintenance & Availability */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+                <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                  
+                </h2>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                  {/* Is Maintainable */}
+                  <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg">
+                    <div className="flex-shrink-0">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${formData.is_maintainable ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'}`}>
+                        
+                      </div>
+                    </div>
+                    <div>
+                      <label className="flex items-center space-x-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="is_maintainable"
+                          checked={formData.is_maintainable === 1}
+                          onChange={handleChange}
+                          className="hidden"
+                          id="maintainable-toggle"
+                        />
+                        <div className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${formData.is_maintainable ? 'bg-orange-500' : 'bg-slate-300'}`}>
+                          <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform duration-200 ${formData.is_maintainable ? 'right-1' : 'left-1'}`}></div>
+                        </div>
+                        <span className="text-sm font-medium text-slate-700">
+                          Dapat di-Maintain
+                        </span>
+                      </label>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Asset memerlukan perawatan berkala
+                      </p>
+                    </div>
                   </div>
 
                   {/* Useful Life - Conditional */}
                   {formData.is_maintainable === 1 && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Masa Pakai (tahun) *
+                        Masa Pakai (hari) *
                       </label>
-                      <input
-                        type="number"
-                        name="useful_life"
-                        value={formData.useful_life}
-                        onChange={handleChange}
-                        min="1"
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                        placeholder="1"
-                        required={formData.is_maintainable === 1}
-                      />
+                      <div className="relative">
+                        <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                        <input
+                          type="number"
+                          name="useful_life"
+                          value={formData.useful_life}
+                          onChange={handleChange}
+                          min="1"
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300"
+                          placeholder="90"
+                          required={formData.is_maintainable === 1}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Lama waktu dalam hari sebelum asset perlu perawatan
+                      </p>
                     </div>
                   )}
+
+                  {/* Is Bulk Insert (Hidden) */}
+                  <input
+                    type="hidden"
+                    name="is_bulk_insert"
+                    value={formData.is_bulk_insert}
+                  />
                 </div>
               </div>
 
-              {/* Gambar dan Deskripsi */}
+              {/* Gambar & Deskripsi */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
                 <h2 className="text-xl font-bold text-slate-900 mb-6">
                   Gambar & Deskripsi
@@ -947,13 +1024,13 @@ const CreatePengadaan = () => {
                   {/* Image Upload */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Gambar Item (Opsional)
+                      Gambar Asset (Opsional)
                     </label>
-                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-emerald-300 transition-colors">
                       <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                      <p className="text-slate-600 mb-2">Upload gambar item</p>
+                      <p className="text-slate-600 mb-2">Upload gambar asset</p>
                       <p className="text-slate-500 text-sm mb-4">
-                        JPG, PNG (Max. 2MB)
+                        JPG, PNG, GIF (Max. 2MB)
                       </p>
                       <input
                         type="file"
@@ -965,14 +1042,21 @@ const CreatePengadaan = () => {
                       />
                       <label
                         htmlFor="image-upload"
-                        className="inline-block px-6 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors font-medium cursor-pointer"
+                        className="inline-block px-6 py-2 border border-slate-300 text-slate-700 rounded-xl hover:bg-slate-50 hover:border-emerald-300 transition-colors font-medium cursor-pointer"
                       >
                         Pilih File
                       </label>
                       {formData.image && (
-                        <div className="mt-2">
-                          <p className="text-sm text-slate-600">
-                            File terpilih: {formData.image.name}
+                        <div className="mt-4">
+                          <div className="flex items-center justify-center">
+                            <img
+                              src={URL.createObjectURL(formData.image)}
+                              alt="Preview"
+                              className="max-w-32 max-h-32 rounded-lg object-cover"
+                            />
+                          </div>
+                          <p className="text-sm text-slate-600 mt-2">
+                            {formData.image.name}
                           </p>
                           <p className="text-xs text-slate-500">
                             Ukuran: {(formData.image.size / 1024).toFixed(2)} KB
@@ -996,24 +1080,9 @@ const CreatePengadaan = () => {
                       name="description"
                       value={formData.description}
                       onChange={handleChange}
-                      rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="Deskripsi detail item..."
-                    />
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Catatan
-                    </label>
-                    <textarea
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleChange}
-                      rows={3}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300"
-                      placeholder="Catatan tambahan..."
+                      rows={4}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all duration-300"
+                      placeholder="Deskripsi detail asset (spesifikasi, kondisi, catatan khusus)..."
                     />
                   </div>
                 </div>
@@ -1023,7 +1092,7 @@ const CreatePengadaan = () => {
               <div className="flex items-center justify-between pt-6">
                 <button
                   type="button"
-                  onClick={() => navigate("/procurements")}
+                  onClick={() => navigate("/assets")}
                   className="px-8 py-3 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all duration-300"
                 >
                   Batal
@@ -1032,7 +1101,7 @@ const CreatePengadaan = () => {
                 <button
                   type="submit"
                   disabled={loading || !formData.location_id}
-                  className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                  className="flex items-center space-x-2 px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
                 >
                   {loading ? (
                     <>
@@ -1042,7 +1111,7 @@ const CreatePengadaan = () => {
                   ) : (
                     <>
                       <Save className="w-5 h-5" />
-                      <span>Buat Pengadaan</span>
+                      <span>Buat Asset</span>
                     </>
                   )}
                 </button>
@@ -1055,4 +1124,4 @@ const CreatePengadaan = () => {
   );
 };
 
-export default CreatePengadaan;
+export default CreateAsset;

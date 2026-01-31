@@ -276,11 +276,11 @@ const Pengadaan = () => {
 
   // Handle view detail
   const handleViewDetail = (id) => {
-    navigate(`/pengadaan/${id}`);
+    navigate(`/procurements/view/${id}`);
   };
 
   const handleEdit = (id) => {
-    navigate(`/pengadaan/update/${id}`);
+    navigate(`/procurements/update/${id}`);
   };
 
   // Handle delete
@@ -745,7 +745,7 @@ const Pengadaan = () => {
                       </div>
 
                       <button
-                        onClick={() => navigate("/pengadaan/create")}
+                        onClick={() => navigate("/procurements/create")}
                         className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-300 flex items-center"
                       >
                         <Plus className="w-4 h-4 mr-2" />
@@ -1135,7 +1135,7 @@ const Pengadaan = () => {
                   <Package className="w-16 h-16 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600">Tidak ada data pengadaan</p>
                   <button
-                    onClick={() => navigate("/pengadaan/create")}
+                    onClick={() => navigate("/procurements/create")}
                     className="mt-4 px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-300"
                   >
                     Buat Pengadaan Pertama
