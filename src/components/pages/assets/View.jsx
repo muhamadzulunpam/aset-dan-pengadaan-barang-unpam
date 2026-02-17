@@ -47,6 +47,7 @@ import {
   ActivityIcon,
   TrendingUp,
   Bell,
+  Info,
 } from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
@@ -87,8 +88,8 @@ const ViewAsset = () => {
       borderColor: "border-yellow-200",
       textColor: "text-yellow-700"
     },
-    maintenance: { 
-      label: "Perawatan", 
+    in_repair: { 
+      label: "Dalam Perbaikan", 
       icon: AlertTriangle, 
       color: "text-orange-500",
       bgColor: "bg-orange-50",
@@ -110,14 +111,6 @@ const ViewAsset = () => {
       bgColor: "bg-slate-50",
       borderColor: "border-slate-200",
       textColor: "text-slate-700"
-    },
-    disposed: { 
-      label: "Dibuang", 
-      icon: ShieldCheck, 
-      color: "text-gray-500",
-      bgColor: "bg-gray-50",
-      borderColor: "border-gray-200",
-      textColor: "text-gray-700"
     },
   };
 
@@ -290,7 +283,13 @@ const ViewAsset = () => {
   const statusConfig = statusOptions[asset.status] || statusOptions.available;
   const StatusIcon = statusConfig.icon;
   const locationHierarchy = getLocationHierarchy(asset.location);
-  const maintenanceCount = asset.maintenance_assets?.data?.length || 0;
+  
+  // PERBAIKAN: Gunakan maintenance_assets_count dari data response
+  const maintenanceCount = asset.maintenance_assets_count || 0;
+  
+  // PERBAIKAN: Hilangkan pemanggilan data maintenance yang tidak ada
+  // const maintenanceList = asset.maintenance_assets?.data || [];
+  
   const imageUrl = asset.image?.startsWith('http') 
     ? asset.image 
     : `http://localhost:8000/storage/${asset.image}`;
@@ -400,7 +399,6 @@ const ViewAsset = () => {
                         </div>
                         <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
                         <div className="flex items-center space-x-2">
-                        <span className="text-slate-500 absolute left-3 top-1/2 transform -translate-y-1/2 font-medium">Rp</span>
 
                           <span className="font-semibold text-emerald-600">
                             {formatCurrency(asset.price)}
@@ -668,61 +666,11 @@ const ViewAsset = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Quick Actions Card */}
-                {/* <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-6 flex items-center">
-                    <BarChart className="w-5 h-5 text-slate-500 mr-2" />
-                    Quick Actions
-                  </h3>
-                  
-                  <div className="space-y-3">
-                    <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors group">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center group-hover:bg-emerald-200 transition-colors">
-                          <RefreshCw className="w-4 h-4 text-emerald-600" />
-                        </div>
-                        <span className="font-medium text-slate-700">Update Status</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </button>
-
-                    <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors group">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                          <History className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <span className="font-medium text-slate-700">Riwayat Perubahan</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </button>
-
-                    <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors group">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                          <QrCode className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <span className="font-medium text-slate-700">Generate QR Code</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </button>
-
-                    <button className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors group">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center group-hover:bg-rose-200 transition-colors">
-                          <Bell className="w-4 h-4 text-rose-600" />
-                        </div>
-                        <span className="font-medium text-slate-700">Buat Laporan</span>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    </button>
-                  </div>
-                </div> */}
               </div>
             </div>
 
-            {/* Maintenance History */}
-            {maintenanceCount > 0 && (
+            {/* PERBAIKAN: Maintenance History - Tampilkan hanya jika ada maintenance */}
+            {maintenanceCount > 0 ? (
               <div className="mt-6">
                 <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
                   <div className="flex items-center justify-between mb-6">
@@ -735,50 +683,40 @@ const ViewAsset = () => {
                     </button>
                   </div>
                   
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-200">
-                          <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Tanggal</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Jenis</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Deskripsi</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Status</th>
-                          <th className="text-left py-3 px-4 text-sm font-medium text-slate-700">Teknisi</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {asset.maintenance_assets.data.map((maintenance) => (
-                          <tr key={maintenance.id} className="border-b border-slate-100 hover:bg-slate-50">
-                            <td className="py-3 px-4 text-sm text-slate-600">
-                              {formatDate(maintenance.created_at)}
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                                {maintenance.type || "Rutin"}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-slate-600">
-                              {maintenance.description || "-"}
-                            </td>
-                            <td className="py-3 px-4">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                maintenance.status === 'completed' 
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : maintenance.status === 'in_progress'
-                                  ? 'bg-yellow-100 text-yellow-700'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}>
-                                {maintenance.status === 'completed' ? 'Selesai' : 
-                                 maintenance.status === 'in_progress' ? 'Dalam Proses' : 'Terjadwal'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-sm text-slate-600">
-                              {maintenance.technician || "-"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  {/* PERBAIKAN: Tampilkan pesan jika tidak ada data maintenance */}
+                  <div className="text-center py-8">
+                    <Info className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500">Belum ada riwayat maintenance untuk asset ini</p>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Data maintenance akan ditampilkan di sini setelah maintenance dijadwalkan
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* PERBAIKAN: Tampilkan card kosong jika tidak ada maintenance */
+              <div className="mt-6">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 p-6 shadow-sm">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-slate-900 flex items-center">
+                      <History className="w-5 h-5 text-slate-500 mr-2" />
+                      Riwayat Maintenance
+                    </h3>
+                  </div>
+                  
+                  <div className="text-center py-8">
+                    <Info className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-slate-500">Belum ada riwayat maintenance</p>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Asset ini belum pernah dilakukan maintenance
+                    </p>
+                    
+                    {asset.is_maintainable && (
+                      <button className="mt-4 inline-flex items-center space-x-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors">
+                        <Wrench className="w-4 h-4" />
+                        <span>Jadwalkan Maintenance Pertama</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

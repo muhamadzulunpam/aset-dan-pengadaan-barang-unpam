@@ -42,7 +42,6 @@ import {
   X,
   Wrench,
   Ban,
-  Info,
 } from "lucide-react";
 import { useAuthStore } from "../../../store/useAuthStore";
 import debounce from "lodash/debounce";
@@ -220,9 +219,7 @@ const BulkStatusModal = ({
     </div>
   );
 };
-
-// Modal Filter Component dengan urutan: Kampus, Gedung, Lantai, Ruangan
-// Modal Filter Component dengan urutan: Kampus, Gedung, Lantai, Ruangan
+// Modal Filter Component dengan 6 filter
 const FilterModal = ({ 
   isOpen, 
   onClose, 
@@ -232,18 +229,14 @@ const FilterModal = ({
   onApplyFilters 
 }) => {
   const [localFilters, setLocalFilters] = useState(filters);
-  
-  // State untuk data lokasi
-  const [buildings, setBuildings] = useState([]);
-  const [floors, setFloors] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [subLocations, setSubLocations] = useState([]);
-  
-  // Loading states
   const [loadingBuildings, setLoadingBuildings] = useState(false);
   const [loadingFloors, setLoadingFloors] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [loadingSubLocations, setLoadingSubLocations] = useState(false);
+  const [buildings, setBuildings] = useState([]);
+  const [floors, setFloors] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [subLocations, setSubLocations] = useState([]);
 
   // Helper untuk menghitung filter aktif
   const activeFilterCount = Object.values(localFilters).filter(value => 
@@ -263,187 +256,65 @@ const FilterModal = ({
     return statusMap[status] || status;
   };
 
-  // Helper untuk mendapatkan locationId berdasarkan hierarchy
-  const getLocationId = () => {
-    // Priority: sub_location_id → room_id → floor_id → building_id
-    if (localFilters.sub_location_id) {
-      return localFilters.sub_location_id;
-    } else if (localFilters.room_id) {
-      return localFilters.room_id;
-    } else if (localFilters.floor_id) {
-      return localFilters.floor_id;
-    } else if (localFilters.building_id) {
-      return localFilters.building_id;
-    }
-    return "";
-  };
-
-  // Fetch buildings (level 1 - Kampus)
+  // Fetch buildings dari API /api/locations/building
   const fetchBuildings = useCallback(async () => {
     try {
       setLoadingBuildings(true);
       const response = await assetService.getBuildings();
-      
-      console.log("Buildings response:", response);
+      console.log('Raw buildings response:', response);
       
       let buildingsData = [];
-      if (response && response.data && response.data.data) {
-        buildingsData = response.data.data;
-      } else if (response && response.data) {
+      
+      // Handle response structure
+      if (response && response.data && Array.isArray(response.data)) {
         buildingsData = response.data;
       } else if (Array.isArray(response)) {
         buildingsData = response;
-      }
-      
-      if (!Array.isArray(buildingsData)) {
-        console.error("Buildings data is not an array:", buildingsData);
+      } else if (response && response.meta && response.data) {
+        buildingsData = response.data;
+      } else {
         buildingsData = [];
       }
       
+      console.log('Processed buildings data:', buildingsData);
       setBuildings(buildingsData);
       
-      // Jika ada filter building yang aktif, fetch floors-nya
+      // Jika ada filter building yang aktif, load floors-nya
       if (filters.building_id && buildingsData.length > 0) {
-        await fetchFloors(filters.building_id);
+        const selectedBuilding = buildingsData.find(b => b.id === parseInt(filters.building_id));
+        if (selectedBuilding && selectedBuilding.children) {
+          const floorsData = selectedBuilding.children;
+          setFloors(floorsData);
+          
+          // Jika ada filter floor yang aktif, load rooms-nya
+          if (filters.floor_id && floorsData.length > 0) {
+            const selectedFloor = floorsData.find(f => f.id === parseInt(filters.floor_id));
+            if (selectedFloor && selectedFloor.children) {
+              const roomsData = selectedFloor.children;
+              setRooms(roomsData);
+              
+              // Jika ada filter room yang aktif, load sub-locations-nya
+              if (filters.room_id && roomsData.length > 0) {
+                const selectedRoom = roomsData.find(r => r.id === parseInt(filters.room_id));
+                if (selectedRoom && selectedRoom.children) {
+                  const subLocationsData = selectedRoom.children;
+                  setSubLocations(subLocationsData);
+                }
+              }
+            }
+          }
+        }
       }
-      
     } catch (err) {
       console.error("Error fetching buildings:", err);
       setBuildings([]);
     } finally {
       setLoadingBuildings(false);
     }
-  }, [filters.building_id]);
+  }, [filters.building_id, filters.floor_id, filters.room_id]);
 
-  // Fetch floors (level 2 - Gedung)
-  const fetchFloors = async (buildingId) => {
-    if (!buildingId) {
-      setFloors([]);
-      return;
-    }
-
-    try {
-      setLoadingFloors(true);
-      setFloors([]);
-      
-      const response = await assetService.getLocationChildren(buildingId);
-      
-      console.log("Floors response for building", buildingId, ":", response);
-      
-      let floorsData = [];
-      if (response && response.data && response.data.data) {
-        floorsData = response.data.data;
-      } else if (response && response.data) {
-        floorsData = response.data;
-      } else if (Array.isArray(response)) {
-        floorsData = response;
-      }
-      
-      if (!Array.isArray(floorsData)) {
-        console.error("Floors data is not an array:", floorsData);
-        floorsData = [];
-      }
-      
-      setFloors(floorsData);
-      
-      // Jika ada filter floor yang aktif, fetch rooms-nya
-      if (filters.floor_id && floorsData.length > 0) {
-        await fetchRooms(filters.floor_id);
-      }
-      
-    } catch (err) {
-      console.error(`Error fetching floors for building ${buildingId}:`, err);
-      setFloors([]);
-    } finally {
-      setLoadingFloors(false);
-    }
-  };
-
-  // Fetch rooms (level 3 - Lantai)
-  const fetchRooms = async (floorId) => {
-    if (!floorId) {
-      setRooms([]);
-      return;
-    }
-
-    try {
-      setLoadingRooms(true);
-      setRooms([]);
-      
-      const response = await assetService.getLocationChildren(floorId);
-      
-      console.log("Rooms response for floor", floorId, ":", response);
-      
-      let roomsData = [];
-      if (response && response.data && response.data.data) {
-        roomsData = response.data.data;
-      } else if (response && response.data) {
-        roomsData = response.data;
-      } else if (Array.isArray(response)) {
-        roomsData = response;
-      }
-      
-      if (!Array.isArray(roomsData)) {
-        console.error("Rooms data is not an array:", roomsData);
-        roomsData = [];
-      }
-      
-      setRooms(roomsData);
-      
-      // Jika ada filter room yang aktif, fetch sub-locations-nya
-      if (filters.room_id && roomsData.length > 0) {
-        await fetchSubLocations(filters.room_id);
-      }
-      
-    } catch (err) {
-      console.error(`Error fetching rooms for floor ${floorId}:`, err);
-      setRooms([]);
-    } finally {
-      setLoadingRooms(false);
-    }
-  };
-
-  // Fetch sub-locations (level 4 - Ruangan)
-  const fetchSubLocations = async (roomId) => {
-    if (!roomId) {
-      setSubLocations([]);
-      return;
-    }
-
-    try {
-      setLoadingSubLocations(true);
-      setSubLocations([]);
-      
-      const response = await assetService.getLocationChildren(roomId);
-      
-      console.log("Sub-locations response for room", roomId, ":", response);
-      
-      let subLocationsData = [];
-      if (response && response.data && response.data.data) {
-        subLocationsData = response.data.data;
-      } else if (response && response.data) {
-        subLocationsData = response.data;
-      } else if (Array.isArray(response)) {
-        subLocationsData = response;
-      }
-      
-      if (!Array.isArray(subLocationsData)) {
-        console.error("Sub-locations data is not an array:", subLocationsData);
-        subLocationsData = [];
-      }
-      
-      setSubLocations(subLocationsData);
-      
-    } catch (err) {
-      console.error(`Error fetching sub-locations for room ${roomId}:`, err);
-      setSubLocations([]);
-    } finally {
-      setLoadingSubLocations(false);
-    }
-  };
-
-  // Handle building change (Kampus)
-  const handleBuildingChange = async (buildingId) => {
+  // Handle building change
+  const handleBuildingChange = (buildingId) => {
     const selectedBuilding = buildings.find(b => b.id === parseInt(buildingId));
     const newFilters = {
       ...localFilters,
@@ -451,10 +322,13 @@ const FilterModal = ({
       building_name: selectedBuilding ? selectedBuilding.name : "",
       floor_id: "",
       floor_name: "",
+      floor_data: null,
       room_id: "",
       room_name: "",
+      room_data: null,
       sub_location_id: "",
-      sub_location_name: ""
+      sub_location_name: "",
+      sub_location_data: null
     };
     setLocalFilters(newFilters);
     
@@ -463,23 +337,30 @@ const FilterModal = ({
     setRooms([]);
     setSubLocations([]);
     
-    // Fetch floors for selected building
-    if (buildingId) {
-      await fetchFloors(buildingId);
+    // Load floors for selected building
+    if (selectedBuilding && selectedBuilding.children) {
+      const floorsData = selectedBuilding.children;
+      setFloors(floorsData);
+      setLoadingFloors(false);
+    } else {
+      setLoadingFloors(false);
     }
   };
 
-  // Handle floor change (Gedung)
-  const handleFloorChange = async (floorId) => {
+  // Handle floor change
+  const handleFloorChange = (floorId) => {
     const selectedFloor = floors.find(f => f.id === parseInt(floorId));
     const newFilters = {
       ...localFilters,
       floor_id: floorId,
       floor_name: selectedFloor ? selectedFloor.name : "",
+      floor_data: selectedFloor,
       room_id: "",
       room_name: "",
+      room_data: null,
       sub_location_id: "",
-      sub_location_name: ""
+      sub_location_name: "",
+      sub_location_data: null
     };
     setLocalFilters(newFilters);
     
@@ -487,41 +368,53 @@ const FilterModal = ({
     setRooms([]);
     setSubLocations([]);
     
-    // Fetch rooms for selected floor
-    if (floorId) {
-      await fetchRooms(floorId);
+    // Load rooms for selected floor
+    if (selectedFloor && selectedFloor.children) {
+      const roomsData = selectedFloor.children;
+      setRooms(roomsData);
+      setLoadingRooms(false);
+    } else {
+      setLoadingRooms(false);
     }
   };
 
-  // Handle room change (Lantai)
-  const handleRoomChange = async (roomId) => {
+  // Handle room change
+  const handleRoomChange = (roomId) => {
     const selectedRoom = rooms.find(r => r.id === parseInt(roomId));
     const newFilters = {
       ...localFilters,
       room_id: roomId,
       room_name: selectedRoom ? selectedRoom.name : "",
+      room_data: selectedRoom,
       sub_location_id: "",
-      sub_location_name: ""
+      sub_location_name: "",
+      sub_location_data: null
     };
     setLocalFilters(newFilters);
     
     // Reset dependent dropdowns
     setSubLocations([]);
     
-    // Fetch sub-locations for selected room
-    if (roomId) {
-      await fetchSubLocations(roomId);
+    // Load sub-locations for selected room
+    if (selectedRoom && selectedRoom.children) {
+      const subLocationsData = selectedRoom.children;
+      setSubLocations(subLocationsData);
+      setLoadingSubLocations(false);
+    } else {
+      setLoadingSubLocations(false);
     }
   };
 
-  // Handle sub-location change (Ruangan)
+  // Handle sub-location change
   const handleSubLocationChange = (subLocationId) => {
     const selectedSubLocation = subLocations.find(s => s.id === parseInt(subLocationId));
-    setLocalFilters({
+    const newFilters = {
       ...localFilters,
       sub_location_id: subLocationId,
-      sub_location_name: selectedSubLocation ? selectedSubLocation.name : ""
-    });
+      sub_location_name: selectedSubLocation ? selectedSubLocation.name : "",
+      sub_location_data: selectedSubLocation
+    };
+    setLocalFilters(newFilters);
   };
 
   // Initialize modal
@@ -530,7 +423,7 @@ const FilterModal = ({
       setLocalFilters(filters);
       fetchBuildings();
     }
-  }, [isOpen, filters]);
+  }, [isOpen, filters, fetchBuildings]);
 
   // Handle apply filters
   const handleApply = () => {
@@ -550,22 +443,22 @@ const FilterModal = ({
       category_name: selectedCategory ? selectedCategory.name : "",
       category_data: selectedCategory,
       
-      // Building (Kampus)
+      // Building
       building_id: localFilters.building_id || "",
       building_name: selectedBuilding ? selectedBuilding.name : "",
       building_data: selectedBuilding,
       
-      // Floor (Gedung)
+      // Floor
       floor_id: localFilters.floor_id || "",
       floor_name: selectedFloor ? selectedFloor.name : "",
       floor_data: selectedFloor,
       
-      // Room (Lantai)
+      // Room
       room_id: localFilters.room_id || "",
       room_name: selectedRoom ? selectedRoom.name : "",
       room_data: selectedRoom,
       
-      // Sub-location (Ruangan)
+      // Sub-location
       sub_location_id: localFilters.sub_location_id || "",
       sub_location_name: selectedSubLocation ? selectedSubLocation.name : "",
       sub_location_data: selectedSubLocation
@@ -696,12 +589,17 @@ const FilterModal = ({
                       <option value="" disabled>Loading kategori...</option>
                     )}
                   </select>
+                  {categories.length === 0 && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Tidak ada kategori tersedia
+                    </p>
+                  )}
                 </div>
 
-                {/* Level 1: Kampus (Building) */}
+                {/* Building Filter */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Kampus
+                    Gedung
                   </label>
                   <div className="relative">
                     <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -711,10 +609,10 @@ const FilterModal = ({
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-300"
                       disabled={loadingBuildings}
                     >
-                      <option value="">Semua Kampus</option>
+                      <option value="">Semua Gedung</option>
                       {buildings.map((building) => (
                         <option key={building.id} value={building.id}>
-                          {building.name || `Kampus ${building.id}`}
+                          {building.name}
                         </option>
                       ))}
                     </select>
@@ -726,10 +624,10 @@ const FilterModal = ({
                   </div>
                 </div>
 
-                {/* Level 2: Gedung (Floor) */}
+                {/* Floor Filter */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Gedung
+                    Lantai
                   </label>
                   <div className="relative">
                     <Building className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -737,12 +635,12 @@ const FilterModal = ({
                       value={localFilters.floor_id}
                       onChange={(e) => handleFloorChange(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-300"
-                      disabled={!localFilters.building_id || loadingFloors}
+                      disabled={!localFilters.building_id || floors.length === 0}
                     >
-                      <option value="">Semua Gedung</option>
+                      <option value="">Semua Lantai</option>
                       {floors.map((floor) => (
                         <option key={floor.id} value={floor.id}>
-                          {floor.name || `Gedung ${floor.id}`}
+                          {floor.name}
                         </option>
                       ))}
                     </select>
@@ -754,10 +652,10 @@ const FilterModal = ({
                   </div>
                 </div>
 
-                {/* Level 3: Lantai (Room) */}
+                {/* Room Filter */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Lantai
+                    Ruangan
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -765,12 +663,12 @@ const FilterModal = ({
                       value={localFilters.room_id}
                       onChange={(e) => handleRoomChange(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-300"
-                      disabled={!localFilters.floor_id || loadingRooms}
+                      disabled={!localFilters.floor_id || rooms.length === 0}
                     >
-                      <option value="">Semua Lantai</option>
+                      <option value="">Semua Ruangan</option>
                       {rooms.map((room) => (
                         <option key={room.id} value={room.id}>
-                          {room.name || `Lantai ${room.id}`}
+                          {room.name}
                         </option>
                       ))}
                     </select>
@@ -782,10 +680,10 @@ const FilterModal = ({
                   </div>
                 </div>
 
-                {/* Level 4: Ruangan (Sub-Location) */}
+                {/* Sub-Location Filter */}
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Ruangan
+                    Sub-Lokasi
                   </label>
                   <div className="relative">
                     <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -793,12 +691,12 @@ const FilterModal = ({
                       value={localFilters.sub_location_id}
                       onChange={(e) => handleSubLocationChange(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all duration-300"
-                      disabled={!localFilters.room_id || loadingSubLocations}
+                      disabled={!localFilters.room_id || subLocations.length === 0}
                     >
-                      <option value="">Semua Ruangan</option>
+                      <option value="">Semua Sub-Lokasi</option>
                       {subLocations.map((subLocation) => (
                         <option key={subLocation.id} value={subLocation.id}>
-                          {subLocation.name || `Ruangan ${subLocation.id}`}
+                          {subLocation.name}
                         </option>
                       ))}
                     </select>
@@ -856,34 +754,27 @@ const FilterModal = ({
                         Kategori: {localFilters.category_name}
                       </span>
                     )}
-                    {/* Tampilkan lokasi sesuai hierarchy - hanya yang terakhir dipilih */}
+                    {localFilters.building_id && localFilters.building_name && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
+                        Gedung: {localFilters.building_name}
+                      </span>
+                    )}
+                    {localFilters.floor_id && localFilters.floor_name && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
+                        Lantai: {localFilters.floor_name}
+                      </span>
+                    )}
+                    {localFilters.room_id && localFilters.room_name && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-cyan-100 text-cyan-700">
+                        Ruangan: {localFilters.room_name}
+                      </span>
+                    )}
                     {localFilters.sub_location_id && localFilters.sub_location_name && (
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-indigo-100 text-indigo-700">
-                        Ruangan: {localFilters.sub_location_name}
-                      </span>
-                    )}
-                    {!localFilters.sub_location_id && localFilters.room_id && localFilters.room_name && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-cyan-100 text-cyan-700">
-                        Lantai: {localFilters.room_name}
-                      </span>
-                    )}
-                    {!localFilters.room_id && localFilters.floor_id && localFilters.floor_name && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
-                        Gedung: {localFilters.floor_name}
-                      </span>
-                    )}
-                    {!localFilters.floor_id && localFilters.building_id && localFilters.building_name && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
-                        Kampus: {localFilters.building_name}
+                        Sub-Lokasi: {localFilters.sub_location_name}
                       </span>
                     )}
                   </div>
-                  {getLocationId() && (
-                    <p className="text-xs text-slate-500 mt-2">
-                      <Info className="w-3 h-3 inline mr-1" />
-                      Filter akan mencakup semua sub-lokasi di bawahnya
-                    </p>
-                  )}
                 </div>
               )}
             </div>
@@ -923,7 +814,6 @@ const FilterModal = ({
     </div>
   );
 };
-
 
 const Assets = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -995,37 +885,27 @@ const Assets = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching assets with filters:', appliedFilters);
+      fetchCount.current += 1;
+      console.log(`fetchAssets called #${fetchCount.current}`);
+      console.log('Applied filters:', appliedFilters);
+      console.log('Search term:', search);
       
-      // Tentukan ID lokasi berdasarkan hierarchy
-      let locationId = "";
-      
-      // Priority: sub_location_id → room_id → floor_id → building_id
-      if (appliedFilters.sub_location_id) {
-        locationId = appliedFilters.sub_location_id;
-      } else if (appliedFilters.room_id) {
-        locationId = appliedFilters.room_id;
-      } else if (appliedFilters.floor_id) {
-        locationId = appliedFilters.floor_id;
-      } else if (appliedFilters.building_id) {
-        locationId = appliedFilters.building_id;
-      }
-      
-      // PARAMETER YANG SESUAI DENGAN BACKEND
+      // PARAMETER YANG SESUAI DENGAN BACKEND LARAVEL
+      // Backend menggunakan LIKE '%nama%' pada kolom name
       const params = {
         page: page,
         limit: 10,
         ...(search && { search: search }),
         ...(appliedFilters.status && { status: appliedFilters.status }),
-        ...(appliedFilters.category_id && { category: appliedFilters.category_name }),
-        // Kirim ID lokasi saja, bukan nama
-        ...(locationId && { location: locationId }),
-        // Sorting (optional)
-        ...(appliedFilters.sortBy && { sortBy: appliedFilters.sortBy }),
-        ...(appliedFilters.sortType && { sortType: appliedFilters.sortType }),
+        ...(appliedFilters.category_name && { category: appliedFilters.category_name }),
+        ...(appliedFilters.building_name && { building: appliedFilters.building_name }),
+        ...(appliedFilters.floor_name && { floor: appliedFilters.floor_name }),
+        ...(appliedFilters.room_name && { 'room-name': appliedFilters.room_name }),
+        // Parameter 'location' untuk root/region (opsional)
+        // ...(appliedFilters.location_name && { location: appliedFilters.location_name }),
       };
       
-      console.log('API params (sesuai Backend):', params);
+      console.log('API params untuk backend (NAMA-based):', params);
       
       const response = await assetService.getAllAssets(params);
       
@@ -2090,4 +1970,4 @@ const Assets = () => {
   );
 };
 
-export default Assets;
+export default Assets;  

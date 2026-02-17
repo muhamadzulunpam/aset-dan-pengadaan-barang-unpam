@@ -6,34 +6,29 @@ export const assetService = {
   
   getAllAssets: async (params = {}) => {
     try {
-      // Default parameters
-      const defaultParams = {
-        page: params.page || 1,
-        per_page: params.per_page || 10
+      // Transform parameter untuk sesuai dengan backend Laravel
+      const backendParams = {
+        ...(params.page && { page: params.page }),
+        ...(params.limit && { limit: params.limit }),
+        ...(params.per_page && { limit: params.per_page }),
+        ...(params.search && { search: params.search }),
+        ...(params.status && { status: params.status }),
+        ...(params.category && { category: params.category }), // Nama kategori
+        ...(params.location && { location: params.location }), // ID lokasi (yang utama)
+        ...(params.sortBy && { sortBy: params.sortBy }),
+        ...(params.sortType && { sortType: params.sortType })
       };
       
-      // Add optional parameters
-      if (params.status) defaultParams.status = params.status;
-      if (params.search) defaultParams.search = params.search;
-      if (params.category_id) defaultParams.category_id = params.category_id;
-      if (params.location_id) defaultParams.location_id = params.location_id;
-      
-      console.log('API Request params for assets:', defaultParams);
+      console.log('Sending to backend API (ID-based location):', backendParams);
       
       const response = await api2.get('/api/assets', { 
-        params: defaultParams 
-      });
-      
-      console.log('API Response structure for assets:', {
-        hasData: !!response.data.data,
-        isDataArray: Array.isArray(response.data.data),
-        hasMeta: !!response.data.meta,
-        fullResponseKeys: Object.keys(response.data)
+        params: backendParams 
       });
       
       return response.data;
     } catch (error) {
       console.error('Error fetching assets:', error);
+      console.error('Error details:', error.response?.data);
       throw error;
     }
   },
@@ -164,6 +159,19 @@ export const assetService = {
     }
   },
 
+  bulkChangeStatus: async (data) => {
+    try {
+      const response = await api2.patch(`/api/assets/bulk-change-status`, data, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
   // Fungsi untuk mengubah status asset
   updateAssetStatus: async (id, status) => {
     try {
@@ -218,5 +226,37 @@ export const assetService = {
       console.error('Error importing assets:', error);
       throw error;
     }
+  },
+  getBuildings: async () => {
+    try {
+      const response = await api2.get('/api/locations/building');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching buildings:', error);
+      throw error;
+    }
+  },
+
+  // Helper untuk mendapatkan lokasi (root) dari building
+  getLocationForBuilding: async (buildingId) => {
+    try {
+      // Endpoint untuk mendapatkan building dengan parent hierarchy
+      const response = await api2.get(`/api/locations/building/${buildingId}/with-parents`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching location for building:', error);
+      throw error;
+    }
+  },
+  getLocationChildren: async (locationId) => {
+    try {
+      const response = await api2.get(`/api/locations/${locationId}/getOneLevelChildren`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching children for location ${locationId}:`, error);
+      throw error;
+    }
   }
+
+
 };

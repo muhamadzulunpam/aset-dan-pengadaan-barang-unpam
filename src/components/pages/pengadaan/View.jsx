@@ -44,6 +44,7 @@ import {
   XCircle,
   Circle,
   HardDriveIcon,
+  Check,
 } from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
@@ -126,14 +127,50 @@ const ViewProcurement = () => {
     }
   };
 
-  // Approval status timeline
+  // PERBAIKAN: Approval timeline disesuaikan dengan data dari Postman
   const approvalSteps = [
-    { key: 'structural_requester', label: 'Structural Requester', icon: User },
-    { key: 'building_manager', label: 'Building Manager', icon: Building2 },
-    { key: 'it_user', label: 'IT Department', icon: Cpu },
-    { key: 'finance_user', label: 'Finance', icon: Wallet },
-    { key: 'procurement_staff', label: 'Procurement Staff', icon: ShoppingCart },
-    { key: 'warehouse_manager', label: 'Warehouse Manager', icon: Warehouse },
+    { 
+      key: 'structural_requester', 
+      label: 'Structural Requester', 
+      icon: User,
+      approvedField: 'approved_by_structural_requester_at',
+      userField: 'structural_requester_user'
+    },
+    { 
+      key: 'building_manager', 
+      label: 'Building Manager', 
+      icon: Building2,
+      approvedField: 'approved_by_building_manager_at',
+      userField: 'building_manager_user'
+    },
+    { 
+      key: 'it', 
+      label: 'IT Department', 
+      icon: Cpu,
+      approvedField: 'approved_by_it_at',
+      userField: 'it_user'
+    },
+    { 
+      key: 'finance', 
+      label: 'Finance', 
+      icon: Wallet,
+      approvedField: 'approved_by_finance_at',
+      userField: 'finance_user'
+    },
+    { 
+      key: 'procurement_staff', 
+      label: 'Procurement Staff', 
+      icon: ShoppingCart,
+      approvedField: 'approved_by_procurement_staff_at',
+      userField: 'procurement_staff_user'
+    },
+    { 
+      key: 'warehouse_manager', 
+      label: 'Warehouse Manager', 
+      icon: Warehouse,
+      approvedField: 'received_by_warehouse_manager_at',
+      userField: 'warehouse_manager_user'
+    },
   ];
 
   // Format currency
@@ -309,6 +346,14 @@ const ViewProcurement = () => {
     ? procurementItem.image 
     : `http://localhost:8000/storage/${procurementItem?.image}`;
 
+  // PERBAIKAN: Hitung jumlah persetujuan berdasarkan data dari Postman
+  const approvedCount = approvalSteps.filter(step => {
+    const approvedAt = procurementItem?.[step.approvedField];
+    return approvedAt !== null && approvedAt !== undefined;
+  }).length;
+
+  const totalSteps = approvalSteps.length;
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
@@ -363,17 +408,6 @@ const ViewProcurement = () => {
                   <span>Dibuat oleh: {procurement.user?.name}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  {/* <button
-                    onClick={() => window.print()}
-                    className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>Cetak</span>
-                  </button> */}
-                  {/* <button className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
-                    <Download className="w-4 h-4" />
-                    <span>Export</span>
-                  </button> */}
                   {procurement.status === 'draft' && (
                     <Link
                       to={`/procurements/edit/${procurement.id}`}
@@ -465,6 +499,7 @@ const ViewProcurement = () => {
                         <ClipboardCheck className="w-5 h-5 text-slate-500 mr-2" />
                         Catatan
                       </h3>
+                        
                       <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 min-h-[120px]">
                         <p className="text-slate-700 whitespace-pre-line">
                           {procurementItem?.notes || "Tidak ada catatan"}
@@ -476,7 +511,6 @@ const ViewProcurement = () => {
                   {/* Financial Information */}
                   <div className="mt-6">
                     <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-                    <span className="text-slate-500 absolute left-3 top-1/2 transform -translate-y-1/2 font-medium">Rp</span>
                       Informasi Keuangan
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -578,40 +612,46 @@ const ViewProcurement = () => {
                   
                   <div className="space-y-4">
                     {approvalSteps.map((step, index) => {
-                      const approvedAt = procurementItem?.[`approved_by_${step.key}_at`];
-                      const user = procurementItem?.[`${step.key}_user`];
-                      const isApproved = !!approvedAt;
+                      // PERBAIKAN: Gunakan field yang sesuai dari data Postman
+                      const approvedAt = procurementItem?.[step.approvedField];
+                      const user = procurementItem?.[step.userField];
+                      const isApproved = approvedAt !== null && approvedAt !== undefined;
                       const StepIcon = step.icon;
                       
                       return (
                         <div key={step.key} className="flex items-start space-x-3">
                           <div className="flex-shrink-0">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            <div className={`relative w-10 h-10 rounded-full flex items-center justify-center ${
                               isApproved 
                                 ? 'bg-emerald-100 text-emerald-600' 
                                 : 'bg-slate-100 text-slate-400'
                             }`}>
                               <StepIcon className="w-5 h-5" />
+                              {isApproved && (
+                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 text-white rounded-full flex items-center justify-center">
+                                  <Check className="w-3 h-3" />
+                                </div>
+                              )}
                             </div>
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className={`font-medium ${
+                              <span className={`font-medium truncate ${
                                 isApproved ? 'text-slate-900' : 'text-slate-600'
                               }`}>
                                 {step.label}
                               </span>
                               {isApproved ? (
-                                <span className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
+                                <span className="flex-shrink-0 text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
                                   Disetujui
                                 </span>
                               ) : (
-                                <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded-full">
+                                <span className="flex-shrink-0 text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded-full">
                                   Menunggu
                                 </span>
                               )}
                             </div>
-                            <p className="text-sm text-slate-500 mt-1">
+                            <p className="text-sm text-slate-500 mt-1 truncate">
                               {user?.name || "Belum ditentukan"}
                             </p>
                             {approvedAt && (
@@ -630,16 +670,27 @@ const ViewProcurement = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-slate-600">Progress Persetujuan</span>
                       <span className="text-sm font-medium text-slate-700">
-                        {approvalSteps.filter(step => !!procurementItem?.[`approved_by_${step.key}_at`]).length} / {approvalSteps.length}
+                        {approvedCount} / {totalSteps}
                       </span>
                     </div>
                     <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                         style={{ 
-                          width: `${(approvalSteps.filter(step => !!procurementItem?.[`approved_by_${step.key}_at`]).length / approvalSteps.length) * 100}%` 
+                          width: `${(approvedCount / totalSteps) * 100}%` 
                         }}
                       ></div>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-500">
+                      {approvedCount === totalSteps ? (
+                        <span className="text-emerald-600 font-medium">
+                          ✓ Semua persetujuan telah diselesaikan
+                        </span>
+                      ) : (
+                        <span>
+                          Menunggu {totalSteps - approvedCount} persetujuan lagi
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
