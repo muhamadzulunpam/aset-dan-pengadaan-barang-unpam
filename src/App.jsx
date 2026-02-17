@@ -14,6 +14,9 @@ import Assets from "./components/pages/assets/Index";
 import CreateAssets from "./components/pages/assets/Create";
 import UpdateAssets from "./components/pages/assets/Update";
 import ViewAssets from "./components/pages/assets/View";
+import MaintenanceAssets from "./components/pages/maintenance_assets/Index";
+// import UpdateMaintenanceAssets from "./components/pages/maintenance_assets/Update";
+// import ViewMaintenanceAssets from "./components/pages/maintenance_assets/View";
 import "./index.css";
 
 function App() {
@@ -118,6 +121,33 @@ function App() {
               } 
             />
             {/* route assets akhir*/}
+
+            {/* route maintenance assets awal*/}
+            <Route 
+              path="/maintenance-assets" 
+              element={
+                <ProtectedRoute>
+                  <MaintenanceAssets />
+                </ProtectedRoute>
+              } 
+            />
+            {/* <Route 
+              path="/maintenance-assets/update/:code" 
+              element={
+                <ProtectedRoute>
+                  <UpdateMaintenanceAssets />
+                </ProtectedRoute>
+              } 
+            /> */}
+            {/* <Route 
+              path="/maintenance-assets/view/:code" 
+              element={
+                <ProtectedRoute>
+                  <ViewMaintenanceAssets />
+                </ProtectedRoute>
+              } 
+            /> */}
+            {/* route maintenance assets akhir*/}
 
 
             {/* Fallback route */}

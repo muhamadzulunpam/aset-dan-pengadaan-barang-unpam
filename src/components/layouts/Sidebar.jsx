@@ -5,6 +5,7 @@ import {
   Home, 
   Settings,
   ShoppingCart,
+  Wrench,
   Package
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -90,6 +91,12 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       icon: Package, 
       label: 'Assets', 
       path: '/assets',
+      badge: null 
+    },
+    { 
+      icon: Wrench, 
+      label: 'Maintenance', 
+      path: '/maintenance-assets',
       badge: null 
     },
     { 
