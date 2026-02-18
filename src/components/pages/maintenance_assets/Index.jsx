@@ -762,14 +762,14 @@ const Index = () => {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center space-x-2">
                                   <button
-                                    onClick={() => navigate(`/maintenance/view/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance-assets/view/${maintenance.id}`)}
                                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
                                     title="Lihat Detail"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => navigate(`/maintenance/update/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance-assets/update/${maintenance.id}`)}
                                     className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
                                     title="Edit"
                                   >

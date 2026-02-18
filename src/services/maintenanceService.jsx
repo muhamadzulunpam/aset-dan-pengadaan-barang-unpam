@@ -24,13 +24,29 @@ export const maintenanceService = {
     }
   },
 
-  // Update maintenance
+  // Update maintenance - menggunakan POST dengan _method=PUT untuk multipart/form-data
   async updateMaintenance(id, data) {
     try {
-      const response = await api2.put(`/api/maintenance-assets/${id}`, data);
+      // Gunakan POST dengan _method=PUT di body untuk multipart/form-data
+      const response = await api2.post(`/api/maintenance-assets/${id}`, data, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       return response.data;
     } catch (error) {
       console.error(`Error updating maintenance ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Optional: Delete maintenance (jika diperlukan)
+  async deleteMaintenance(id) {
+    try {
+      const response = await api2.delete(`/api/maintenance-assets/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting maintenance ${id}:`, error);
       throw error;
     }
   }

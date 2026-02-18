@@ -831,9 +831,6 @@ const UpdateAsset = () => {
                   <Edit className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <div className="mt-2 text-sm text-slate-500">
-                Kode Asset: <span className="font-mono bg-slate-100 px-2 py-1 rounded">{code}</span>
-              </div>
             </div>
 
             {/* Alert Messages */}

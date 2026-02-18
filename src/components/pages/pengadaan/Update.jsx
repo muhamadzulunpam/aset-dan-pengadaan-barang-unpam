@@ -832,9 +832,6 @@ const UpdatePengadaan = () => {
                   <Edit className="w-6 h-6 text-white" />
                 </div>
               </div>
-              <p className="text-slate-600 text-lg">
-                Update data pengadaan untuk item: <span className="font-semibold">{formData.item_name}</span>
-              </p>
             </div>
 
             {/* Alert Messages */}

@@ -15,8 +15,8 @@ import CreateAssets from "./components/pages/assets/Create";
 import UpdateAssets from "./components/pages/assets/Update";
 import ViewAssets from "./components/pages/assets/View";
 import MaintenanceAssets from "./components/pages/maintenance_assets/Index";
-// import UpdateMaintenanceAssets from "./components/pages/maintenance_assets/Update";
-// import ViewMaintenanceAssets from "./components/pages/maintenance_assets/View";
+import UpdateMaintenanceAssets from "./components/pages/maintenance_assets/Update";
+import ViewMaintenanceAssets from "./components/pages/maintenance_assets/View";
 import "./index.css";
 
 function App() {
@@ -44,7 +44,7 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
+            <Route  
               path="/dashboard" 
               element={
                 <ProtectedRoute>
@@ -131,22 +131,22 @@ function App() {
                 </ProtectedRoute>
               } 
             />
-            {/* <Route 
-              path="/maintenance-assets/update/:code" 
+            <Route 
+              path="/maintenance-assets/update/:id" 
               element={
                 <ProtectedRoute>
                   <UpdateMaintenanceAssets />
                 </ProtectedRoute>
               } 
-            /> */}
-            {/* <Route 
-              path="/maintenance-assets/view/:code" 
+            />
+            <Route 
+              path="/maintenance-assets/view/:id" 
               element={
                 <ProtectedRoute>
                   <ViewMaintenanceAssets />
                 </ProtectedRoute>
               } 
-            /> */}
+            />
             {/* route maintenance assets akhir*/}
 
 
