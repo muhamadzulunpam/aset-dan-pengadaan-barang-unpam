@@ -27,9 +27,11 @@ import {
   RefreshCw,
   X,
   Info,
-  Loader
+  Loader,
+  Activity,
 } from "lucide-react";
 import debounce from "lodash/debounce";
+
 
 // Modal Filter Component
 const FilterModal = ({ 
@@ -260,6 +262,7 @@ const Index = () => {
     to: null,
   });
 
+
   // State untuk search dan filter
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
@@ -268,6 +271,47 @@ const Index = () => {
     asset_code: ""
   });
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  const [isUpdating, setIsUpdating] = useState(false);
+  // Fungsi untuk mark as in progress
+  const handleMarkAsInProgress = async (id) => {
+    if (!window.confirm("Apakah Anda yakin ingin mengubah status maintenance ini menjadi 'Sedang Berjalan'?")) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+
+    try {
+      const response = await maintenanceService.markAsInProgress(id);
+      console.log("Mark as in progress response:", response);
+    
+    // Refresh data
+    await fetchMaintenances(pagination.current_page, filters, searchTerm);
+    
+    // Tampilkan notifikasi sukses (opsional)
+    alert("Status maintenance berhasil diubah menjadi 'Sedang Berjalan'");
+  } catch (err) {
+    console.error("Error marking as in progress:", err);
+    
+    let errorMessage = "Gagal mengubah status maintenance. ";
+    if (err.response) {
+      if (err.response.status === 403) {
+        errorMessage = "Anda tidak memiliki izin untuk melakukan aksi ini.";
+      } else if (err.response.status === 400) {
+        errorMessage = err.response.data?.message || "Status maintenance tidak dapat diubah.";
+      } else if (err.response.data?.message) {
+        errorMessage = err.response.data.message;
+      }
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+    
+    alert(errorMessage);
+  } finally {
+    setIsUpdating(false);
+  }
+};
 
   // Refs
   const isInitialMount = useRef(true);
@@ -768,6 +812,15 @@ const Index = () => {
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
+                                  {maintenance.status === 'scheduled' && (
+                                      <button
+                                        onClick={() => handleMarkAsInProgress(maintenance.id)}
+                                        className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-xl transition-colors"
+                                        title="Mark as In Progress"
+                                      >
+                                        <Activity className="w-4 h-4" />
+                                      </button>
+                                    )}
                                   <button
                                     onClick={() => navigate(`/maintenance-assets/update/${maintenance.id}`)}
                                     className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"

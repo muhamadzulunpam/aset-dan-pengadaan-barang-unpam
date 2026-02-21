@@ -143,7 +143,7 @@ const UpdateMaintenance = () => {
       
       if (err.response?.status === 404) {
         setTimeout(() => {
-          navigate("/maintenance");
+          navigate("/maintenance-assets");
         }, 3000);
       }
     } finally {
@@ -289,7 +289,7 @@ const UpdateMaintenance = () => {
       setSuccess(response.meta?.message || "Data maintenance berhasil diupdate!");
       
       setTimeout(() => {
-        navigate("/maintenance");
+        navigate("/maintenance-assets");
       }, 2000);
       
     } catch (err) {
@@ -688,7 +688,7 @@ const UpdateMaintenance = () => {
               <div className="flex items-center justify-between pt-6">
                 <button
                   type="button"
-                  onClick={() => navigate("/maintenance")}
+                  onClick={() => navigate("/maintenance-assets")}
                   className="px-8 py-3 border border-slate-300 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all duration-300"
                 >
                   Batal

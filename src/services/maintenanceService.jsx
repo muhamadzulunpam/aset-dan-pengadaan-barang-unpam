@@ -49,5 +49,14 @@ export const maintenanceService = {
       console.error(`Error deleting maintenance ${id}:`, error);
       throw error;
     }
+  },
+  async markAsInProgress(id) {
+    try {
+      const response = await api2.patch(`/api/maintenance-assets/${id}/mark-as-in-progress`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error marking maintenance ${id} as in progress:`, error);
+      throw error;
+    }
   }
 };
