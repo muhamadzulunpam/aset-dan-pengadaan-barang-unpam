@@ -1,4 +1,6 @@
 // src/pages/maintenance/Index.jsx
+// Perbaikan pada bagian filter dan search
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../layouts/Sidebar";
@@ -19,8 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
-  Building,
-  MapPin,
   Tag,
   Calendar as CalendarIcon,
   Users,
@@ -29,16 +29,15 @@ import {
   Info,
   Loader,
   Activity,
+  User
 } from "lucide-react";
 import debounce from "lodash/debounce";
-
 
 // Modal Filter Component
 const FilterModal = ({ 
   isOpen, 
   onClose, 
   filters,
-  setFilters,
   onApplyFilters 
 }) => {
   const [localFilters, setLocalFilters] = useState(filters);
@@ -68,9 +67,7 @@ const FilterModal = ({
   // Handle reset filters
   const handleReset = () => {
     const resetFilters = {
-      status: "",
-      asset_name: "",
-      asset_code: ""
+      status: ""
     };
     setLocalFilters(resetFilters);
   };
@@ -104,7 +101,7 @@ const FilterModal = ({
                     Filter Maintenance
                   </h3>
                   <p className="text-sm text-slate-500">
-                    Filter data maintenance berdasarkan kriteria
+                    Filter data maintenance berdasarkan status
                   </p>
                 </div>
               </div>
@@ -144,32 +141,21 @@ const FilterModal = ({
                 </select>
               </div>
 
-              {/* Asset Name Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  Nama Asset
-                </label>
-                <input
-                  type="text"
-                  value={localFilters.asset_name || ""}
-                  onChange={(e) => setLocalFilters({...localFilters, asset_name: e.target.value})}
-                  placeholder="Cari berdasarkan nama asset..."
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all duration-300"
-                />
-              </div>
-
-              {/* Asset Code Filter */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-slate-700">
-                  Kode Asset
-                </label>
-                <input
-                  type="text"
-                  value={localFilters.asset_code || ""}
-                  onChange={(e) => setLocalFilters({...localFilters, asset_code: e.target.value})}
-                  placeholder="Cari berdasarkan kode asset..."
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all duration-300"
-                />
+              {/* Informasi Pencarian */}
+              <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                <div className="flex items-start">
+                  <Info className="w-4 h-4 text-blue-500 mr-2 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-blue-700">
+                      <span className="font-semibold">Tips:</span> Gunakan kolom pencarian di halaman utama untuk mencari berdasarkan:
+                    </p>
+                    <ul className="text-xs text-blue-600 mt-1 list-disc list-inside">
+                      <li>Nama Asset</li>
+                      <li>Kode Asset</li>
+                      <li>Nama Teknisi</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
 
               {/* Active filters info */}
@@ -182,16 +168,6 @@ const FilterModal = ({
                     {localFilters.status && (
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-orange-100 text-orange-700">
                         Status: {formatStatus(localFilters.status)}
-                      </span>
-                    )}
-                    {localFilters.asset_name && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
-                        Asset: {localFilters.asset_name}
-                      </span>
-                    )}
-                    {localFilters.asset_code && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-purple-100 text-purple-700">
-                        Kode: {localFilters.asset_code}
                       </span>
                     )}
                   </div>
@@ -262,56 +238,13 @@ const Index = () => {
     to: null,
   });
 
-
   // State untuk search dan filter
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({
-    status: "",
-    asset_name: "",
-    asset_code: ""
+    status: ""
   });
   const [showFilterModal, setShowFilterModal] = useState(false);
-
   const [isUpdating, setIsUpdating] = useState(false);
-  // Fungsi untuk mark as in progress
-  const handleMarkAsInProgress = async (id) => {
-    if (!window.confirm("Apakah Anda yakin ingin mengubah status maintenance ini menjadi 'Sedang Berjalan'?")) {
-      return;
-    }
-
-    setIsUpdating(true);
-    setError(null);
-
-    try {
-      const response = await maintenanceService.markAsInProgress(id);
-      console.log("Mark as in progress response:", response);
-    
-    // Refresh data
-    await fetchMaintenances(pagination.current_page, filters, searchTerm);
-    
-    // Tampilkan notifikasi sukses (opsional)
-    alert("Status maintenance berhasil diubah menjadi 'Sedang Berjalan'");
-  } catch (err) {
-    console.error("Error marking as in progress:", err);
-    
-    let errorMessage = "Gagal mengubah status maintenance. ";
-    if (err.response) {
-      if (err.response.status === 403) {
-        errorMessage = "Anda tidak memiliki izin untuk melakukan aksi ini.";
-      } else if (err.response.status === 400) {
-        errorMessage = err.response.data?.message || "Status maintenance tidak dapat diubah.";
-      } else if (err.response.data?.message) {
-        errorMessage = err.response.data.message;
-      }
-    } else if (err.message) {
-      errorMessage = err.message;
-    }
-    
-    alert(errorMessage);
-  } finally {
-    setIsUpdating(false);
-  }
-};
 
   // Refs
   const isInitialMount = useRef(true);
@@ -327,14 +260,12 @@ const Index = () => {
       setLoading(true);
       setError(null);
 
-      // Build params
+      // Build params - sesuai dengan backend
       const params = {
         page: page,
         limit: pagination.per_page,
-        ...(search && { search: search }),
-        ...(appliedFilters.status && { status: appliedFilters.status }),
-        ...(appliedFilters.asset_name && { asset_name: appliedFilters.asset_name }),
-        ...(appliedFilters.asset_code && { asset_code: appliedFilters.asset_code })
+        ...(search && { search: search }), // Search untuk asset name, asset code, DAN technician name
+        ...(appliedFilters.status && { status: appliedFilters.status })
       };
 
       console.log('Fetching maintenances with params:', params);
@@ -381,6 +312,45 @@ const Index = () => {
       setLoading(false);
     }
   }, [pagination.per_page]);
+
+  // Fungsi untuk mark as in progress
+  const handleMarkAsInProgress = async (id) => {
+    if (!window.confirm("Apakah Anda yakin ingin mengubah status maintenance ini menjadi 'Sedang Berjalan'?")) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+
+    try {
+      const response = await maintenanceService.markAsInProgress(id);
+      console.log("Mark as in progress response:", response);
+      
+      // Refresh data
+      await fetchMaintenances(pagination.current_page, filters, searchTerm);
+      
+      alert("Status maintenance berhasil diubah menjadi 'Sedang Berjalan'");
+    } catch (err) {
+      console.error("Error marking as in progress:", err);
+      
+      let errorMessage = "Gagal mengubah status maintenance. ";
+      if (err.response) {
+        if (err.response.status === 403) {
+          errorMessage = "Anda tidak memiliki izin untuk melakukan aksi ini.";
+        } else if (err.response.status === 400) {
+          errorMessage = err.response.data?.message || "Status maintenance tidak dapat diubah.";
+        } else if (err.response.data?.message) {
+          errorMessage = err.response.data.message;
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -615,6 +585,12 @@ const Index = () => {
               </div>
             </div>
 
+            {/* Search Info */}
+            <div className="mb-4 flex items-center space-x-2 text-sm text-slate-500">
+              <Info className="w-4 h-4" />
+              <span>Pencarian mencakup: Nama Asset, Kode Asset, dan Nama Teknisi</span>
+            </div>
+
             {/* Main Table */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
               {/* Table Header */}
@@ -630,12 +606,12 @@ const Index = () => {
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
-                    {/* Search */}
+                    {/* Search - Mencakup asset name, asset code, dan technician name */}
                     <div className="relative">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Cari asset..."
+                        placeholder="Cari asset / teknisi..."
                         value={searchTerm}
                         onChange={(e) => handleSearchChange(e.target.value)}
                         className="pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all duration-300 w-full lg:w-64"
@@ -652,7 +628,7 @@ const Index = () => {
                                   outline-none transition-all duration-300 w-full lg:w-48
                                   flex items-center justify-between text-slate-600 hover:bg-slate-100"
                       >
-                        <span>Filter</span>
+                        <span>Filter Status</span>
                         {activeFilterCount > 0 && (
                           <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full">
                             {activeFilterCount}
@@ -792,11 +768,17 @@ const Index = () => {
                                 </div>
                               </td>
 
-                              {/* Teknisi */}
+                              {/* Teknisi - Highlight jika sesuai pencarian */}
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center">
-                                  <Users className="w-4 h-4 text-slate-400 mr-2" />
-                                  <span className="text-sm text-slate-700">
+                                  <User className="w-4 h-4 text-slate-400 mr-2" />
+                                  <span className={`text-sm ${
+                                    searchTerm && 
+                                    maintenance.technician_user?.name && 
+                                    maintenance.technician_user.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                      ? 'bg-yellow-100 text-yellow-800 font-semibold px-2 py-1 rounded'
+                                      : 'text-slate-700'
+                                  }`}>
                                     {maintenance.technician_user?.name || "-"}
                                   </span>
                                 </div>
@@ -806,23 +788,24 @@ const Index = () => {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center space-x-2">
                                   <button
-                                    onClick={() => navigate(`/maintenance-assets/view/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance/view/${maintenance.id}`)}
                                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
                                     title="Lihat Detail"
                                   >
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   {maintenance.status === 'scheduled' && (
-                                      <button
-                                        onClick={() => handleMarkAsInProgress(maintenance.id)}
-                                        className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-xl transition-colors"
-                                        title="Mark as In Progress"
-                                      >
-                                        <Activity className="w-4 h-4" />
-                                      </button>
-                                    )}
+                                    <button
+                                      onClick={() => handleMarkAsInProgress(maintenance.id)}
+                                      disabled={isUpdating}
+                                      className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Mark as In Progress"
+                                    >
+                                      <Activity className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => navigate(`/maintenance-assets/update/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance/update/${maintenance.id}`)}
                                     className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
                                     title="Edit"
                                   >
@@ -911,7 +894,6 @@ const Index = () => {
         isOpen={showFilterModal}
         onClose={() => setShowFilterModal(false)}
         filters={filters}
-        setFilters={setFilters}
         onApplyFilters={handleApplyFilters}
       />
     </div>
