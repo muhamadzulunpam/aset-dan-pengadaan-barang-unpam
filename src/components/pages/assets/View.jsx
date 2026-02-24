@@ -357,7 +357,7 @@ const ViewAsset = () => {
                   <span>Dibuat: {formatDateTime(asset.created_at)}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <button
+                  {/* <button
                     onClick={() => window.print()}
                     className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
                   >
@@ -367,7 +367,7 @@ const ViewAsset = () => {
                   <button className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
                     <Download className="w-4 h-4" />
                     <span>Export</span>
-                  </button>
+                  </button> */}
                   <Link
                     to={`/assets/update/${asset.code}`}
                     className="flex items-center space-x-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"

@@ -331,7 +331,7 @@ const ViewMaintenance = () => {
                   <span>Dibuat: {formatDateTime(maintenance.created_at)}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <button
+                  {/* <button
                     onClick={() => window.print()}
                     className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
                   >
@@ -341,9 +341,9 @@ const ViewMaintenance = () => {
                   <button className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
                     <Download className="w-4 h-4" />
                     <span>Export</span>
-                  </button>
+                  </button> */}
                   <Link
-                    to={`/maintenance/update/${maintenance.id}`}
+                    to={`/maintenance-assets/update/${maintenance.id}`}
                     className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
                   >
                     <Edit className="w-4 h-4" />

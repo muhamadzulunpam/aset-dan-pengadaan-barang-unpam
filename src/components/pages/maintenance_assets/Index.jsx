@@ -53,7 +53,7 @@ const FilterModal = ({
       scheduled: "Terjadwal",
       in_progress: "Sedang Berjalan",
       completed: "Selesai",
-      cancelled: "Dibatalkan",
+      canceled: "Dibatalkan",
       overdue: "Terlewat"
     };
     return statusMap[status] || status;
@@ -136,7 +136,7 @@ const FilterModal = ({
                   <option value="scheduled">Terjadwal</option>
                   <option value="in_progress">Sedang Berjalan</option>
                   <option value="completed">Selesai</option>
-                  <option value="cancelled">Dibatalkan</option>
+                  <option value="canceled">Dibatalkan</option>
                   <option value="overdue">Terlewat</option>
                 </select>
               </div>
@@ -416,7 +416,7 @@ const Index = () => {
       scheduled: "Terjadwal",
       in_progress: "Sedang Berjalan",
       completed: "Selesai",
-      cancelled: "Dibatalkan",
+      canceled: "Dibatalkan",
       overdue: "Terlewat"
     };
     return statusMap[status] || status;
@@ -428,7 +428,7 @@ const Index = () => {
       scheduled: "bg-blue-50 text-blue-700 border border-blue-200",
       in_progress: "bg-yellow-50 text-yellow-700 border border-yellow-200",
       completed: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-      cancelled: "bg-slate-50 text-slate-700 border border-slate-200",
+      canceled: "bg-slate-50 text-slate-700 border border-slate-200",
       overdue: "bg-rose-50 text-rose-700 border border-rose-200"
     };
     return colors[status] || "bg-slate-50 text-slate-700";
@@ -438,9 +438,9 @@ const Index = () => {
   const getStatusIcon = (status) => {
     const icons = {
       scheduled: <Calendar className="w-4 h-4 text-blue-500" />,
-      in_progress: <Loader className="w-4 h-4 text-yellow-500 animate-spin" />,
+      in_progress: <Loader className="w-4 h-4 text-yellow-500" />,
       completed: <CheckCircle className="w-4 h-4 text-emerald-500" />,
-      cancelled: <XCircle className="w-4 h-4 text-slate-500" />,
+      canceled: <XCircle className="w-4 h-4 text-slate-500" />,
       overdue: <AlertTriangle className="w-4 h-4 text-rose-500" />
     };
     return icons[status] || <Clock className="w-4 h-4 text-slate-500" />;
@@ -551,7 +551,7 @@ const Index = () => {
                     <p className="text-xs text-slate-500 mt-1">Dalam proses perawatan</p>
                   </div>
                   <div className="p-3 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-xl">
-                    <Loader className="w-6 h-6 text-yellow-600 animate-spin" />
+                    <Loader className="w-6 h-6 text-yellow-600" />
                   </div>
                 </div>
               </div>
@@ -788,7 +788,7 @@ const Index = () => {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center space-x-2">
                                   <button
-                                    onClick={() => navigate(`/maintenance/view/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance-assets/view/${maintenance.id}`)}
                                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
                                     title="Lihat Detail"
                                   >
@@ -805,7 +805,7 @@ const Index = () => {
                                     </button>
                                   )}
                                   <button
-                                    onClick={() => navigate(`/maintenance/update/${maintenance.id}`)}
+                                    onClick={() => navigate(`/maintenance-assets/update/${maintenance.id}`)}
                                     className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
                                     title="Edit"
                                   >
