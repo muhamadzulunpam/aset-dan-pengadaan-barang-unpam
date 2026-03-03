@@ -17,11 +17,14 @@ import {
   FileText,
   Image as ImageIcon,
   Trash2,
-  Info
+  Info,
+  AlertCircle
 } from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
 import { maintenanceService } from "../../../services/maintenanceService";
+
+const BASE_URL = 'http://localhost:8000';
 
 const UpdateMaintenance = () => {
   const navigate = useNavigate();
@@ -57,6 +60,37 @@ const UpdateMaintenance = () => {
     actual_maintenance_date: "",
   });
 
+  // Fungsi untuk mendapatkan URL foto yang benar
+  const getPhotoUrl = (photo) => {
+    if (!photo) return null;
+    
+    if (photo.startsWith('http')) {
+      return photo;
+    }
+    
+    // Hapus slash di awal jika ada
+    const cleanPhoto = photo.replace(/^\//, '');
+    
+    // Jika path sudah mengandung 'storage/assets/maintenance-assets/'
+    if (cleanPhoto.includes('storage/assets/maintenance-assets/')) {
+      return `${BASE_URL}/${cleanPhoto}`;
+    }
+    
+    // Jika path sudah mengandung 'storage/'
+    if (cleanPhoto.includes('storage/')) {
+      return `${BASE_URL}/${cleanPhoto}`;
+    }
+    
+    // Jika path sudah mengandung 'assets/'
+    if (cleanPhoto.includes('assets/')) {
+      return `${BASE_URL}/storage/${cleanPhoto}`;
+    }
+    
+    // Jika hanya nama file, tambahkan path lengkap
+    const fileName = cleanPhoto.split('/').pop();
+    return `${BASE_URL}/storage/assets/maintenance-assets/${fileName}`;
+  };
+
   // Fetch maintenance data berdasarkan ID
   const fetchMaintenanceData = async () => {
     try {
@@ -86,17 +120,8 @@ const UpdateMaintenance = () => {
       
       // Set current photo jika ada
       if (maintenanceData?.photo) {
-        let photoUrl = maintenanceData.photo;
-        
-        if (photoUrl.startsWith('http')) {
-          setCurrentPhoto(photoUrl);
-        } else if (photoUrl.startsWith('storage/')) {
-          setCurrentPhoto(photoUrl);
-        } else if (photoUrl.startsWith('/storage/')) {
-          setCurrentPhoto(photoUrl.substring(1));
-        } else {
-          setCurrentPhoto(`storage/maintenance/${photoUrl}`);
-        }
+        const photoUrl = getPhotoUrl(maintenanceData.photo);
+        setCurrentPhoto(photoUrl);
         setHasExistingPhoto(true);
       } else {
         setCurrentPhoto("");
@@ -239,6 +264,22 @@ const UpdateMaintenance = () => {
     setError("");
     setSuccess("");
 
+    // Validasi useful life - WAJIB diisi
+    if (!formData.useful_life) {
+      setError("Masa pakai (useful life) harus diisi");
+      setLoading(false);
+      return;
+    }
+
+    // Validasi: Jika status completed, wajib ada foto
+    if (formData.status === 'completed') {
+      if (!hasExistingPhoto && !formData.photo) {
+        setError("Foto wajib diupload untuk maintenance dengan status 'Selesai'");
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       console.log("Form data sebelum dikirim:", formData);
 
@@ -250,13 +291,6 @@ const UpdateMaintenance = () => {
       // Required fields
       submitData.append("status", formData.status);
       submitData.append("notes", formData.notes || "");
-      
-      // Useful life - WAJIB diisi
-      if (!formData.useful_life) {
-        setError("Masa pakai (useful life) harus diisi");
-        setLoading(false);
-        return;
-      }
       submitData.append("useful_life", parseInt(formData.useful_life));
 
       // Handle photo
@@ -268,18 +302,33 @@ const UpdateMaintenance = () => {
           setLoading(false);
           return;
         }
+        
+        // Validasi ukuran file
+        if (formData.photo.size > 2 * 1024 * 1024) {
+          setImageError("Ukuran file maksimal 2MB");
+          setLoading(false);
+          return;
+        }
+        
+        console.log("Mengirim file baru:", formData.photo.name, "size:", formData.photo.size);
         submitData.append("photo", formData.photo);
-      } else if (isPhotoChanged && !hasExistingPhoto) {
-        // Jika foto dihapus (tidak ada file baru dan tidak ada foto lama)
-        // Kirim string kosong atau null? Tergantung backend
-        // submitData.append("photo", ""); 
-        // Atau tidak usah kirim field photo
+      } else if (hasExistingPhoto && !isPhotoChanged) {
+        // Jika tidak ada perubahan foto dan masih pakai foto lama
+        console.log("Tetap pakai foto lama");
+        // Tidak perlu kirim field photo
+      } else if (!hasExistingPhoto && !formData.photo) {
+        // Jika tidak ada foto sama sekali (baru dan tidak ada foto lama)
+        console.log("Tidak ada foto");
+        // Tidak perlu kirim field photo
       }
-      // Jika tidak ada perubahan foto (masih pakai foto lama), jangan kirim field photo
 
       console.log("Data yang akan dikirim ke API:");
       for (let [key, value] of submitData.entries()) {
-        console.log(key, value);
+        if (key === 'photo' && value instanceof File) {
+          console.log(key, `File: ${value.name}, size: ${value.size} bytes, type: ${value.type}`);
+        } else {
+          console.log(key, value);
+        }
       }
 
       const response = await maintenanceService.updateMaintenance(id, submitData);
@@ -495,7 +544,7 @@ const UpdateMaintenance = () => {
                   {/* Status */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Status Maintenance *
+                      Status Maintenance <span className="text-rose-500">*</span>
                     </label>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       {statusOptions.map((option) => {
@@ -535,7 +584,7 @@ const UpdateMaintenance = () => {
                   {/* Useful Life - WAJIB */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Masa Pakai (hari) *
+                      Masa Pakai (hari) <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -577,6 +626,10 @@ const UpdateMaintenance = () => {
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       Foto Maintenance
+                      {/* Tampilkan bintang merah jika status completed dan belum ada foto */}
+                      {formData.status === 'completed' && !hasExistingPhoto && !formData.photo && (
+                        <span className="ml-1 text-rose-500 font-bold">*</span>
+                      )}
                     </label>
                     
                     {/* Current Photo Preview */}
@@ -585,14 +638,30 @@ const UpdateMaintenance = () => {
                         <p className="text-sm text-slate-600 mb-2">Foto saat ini:</p>
                         <div className="flex items-center space-x-4">
                           <img 
-                            src={currentPhoto.startsWith('http') ? 
-                                  currentPhoto : 
-                                  `http://localhost:8000/${currentPhoto}`} 
+                            src={currentPhoto}
                             alt="Current maintenance" 
                             className="w-32 h-32 object-cover rounded-lg border border-slate-200"
                             onError={(e) => {
                               console.error("Error loading image:", currentPhoto);
-                              e.target.src = "https://via.placeholder.com/128x128?text=Foto+Tidak+Tersedia";
+                              
+                              // Coba beberapa alternatif path
+                              const fileName = currentPhoto.split('/').pop();
+                              const possiblePaths = [
+                                `${BASE_URL}/storage/assets/maintenance-assets/${fileName}`,
+                                `${BASE_URL}/storage/assets/${fileName}`,
+                                `${BASE_URL}/assets/${fileName}`,
+                              ];
+                              
+                              const currentSrc = e.target.src;
+                              const nextPath = possiblePaths.find(p => p !== currentSrc);
+                              
+                              if (nextPath) {
+                                console.log("Trying alternative path:", nextPath);
+                                e.target.src = nextPath;
+                              } else {
+                                // Placeholder lokal
+                                e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' fill='%23f1f5f9'/%3E%3Ctext x='64' y='64' font-family='Arial' font-size='12' fill='%2394a3b8' text-anchor='middle' dy='.3em'%3EFoto Tidak Ada%3C/text%3E%3C/svg%3E";
+                              }
                             }}
                           />
                           <button
@@ -640,6 +709,10 @@ const UpdateMaintenance = () => {
                         <ImageIcon className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                         <p className="text-slate-600 mb-2">
                           {hasExistingPhoto ? "Upload foto baru untuk mengganti" : "Upload foto maintenance"}
+                          {/* Tampilkan bintang merah di sini juga jika status completed dan belum ada foto */}
+                          {formData.status === 'completed' && !hasExistingPhoto && (
+                            <span className="text-rose-500 font-bold ml-1">*</span>
+                          )}
                         </p>
                         <p className="text-slate-500 text-sm mb-4">
                           JPG, PNG (Max. 2MB)
@@ -663,6 +736,14 @@ const UpdateMaintenance = () => {
                             {imageError}
                           </p>
                         )}
+                        
+                        {/* Pesan peringatan jika status completed dan belum ada foto */}
+                        {formData.status === 'completed' && !hasExistingPhoto && !formData.photo && (
+                          <p className="text-xs text-rose-500 mt-3 flex items-center justify-center">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Foto wajib diupload untuk maintenance dengan status "Selesai"
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -676,7 +757,7 @@ const UpdateMaintenance = () => {
                   <div>
                     <p className="text-sm text-blue-700">
                       <span className="font-semibold">Catatan:</span> 
-                      - Field yang ditandai dengan * wajib diisi.<br />
+                      - Field yang ditandai <span className="text-rose-500 font-bold">*</span> wajib diisi.<br />
                       - Untuk mengubah foto, upload file baru.<br />
                       - Foto lama akan diganti dengan foto baru.
                     </p>

@@ -4,9 +4,6 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import {
   ArrowLeft,
   Edit,
-  Printer,
-  Download,
-  Share2,
   Wrench,
   Calendar,
   Clock,
@@ -31,11 +28,12 @@ import {
   Phone,
   History,
   Activity,
-  Shield
 } from "lucide-react";
 import Sidebar from "../../layouts/Sidebar";
 import Header from "../../layouts/Header";
 import { maintenanceService } from "../../../services/maintenanceService";
+
+const BASE_URL = 'http://localhost:8000';
 
 const ViewMaintenance = () => {
   const navigate = useNavigate();
@@ -144,6 +142,38 @@ const ViewMaintenance = () => {
     return hierarchy;
   };
 
+  // Fungsi untuk mendapatkan URL foto yang benar
+  const getPhotoUrl = () => {
+    if (!maintenance?.photo) return null;
+    
+    // Jika sudah URL lengkap
+    if (maintenance.photo.startsWith('http')) {
+      return maintenance.photo;
+    }
+    
+    // Hapus slash di awal jika ada
+    const cleanPhoto = maintenance.photo.replace(/^\//, '');
+    
+    // Jika path sudah mengandung 'storage/assets/maintenance-assets/'
+    if (cleanPhoto.includes('storage/assets/maintenance-assets/')) {
+      return `${BASE_URL}/${cleanPhoto}`;
+    }
+    
+    // Jika path sudah mengandung 'storage/'
+    if (cleanPhoto.includes('storage/')) {
+      return `${BASE_URL}/${cleanPhoto}`;
+    }
+    
+    // Jika path sudah mengandung 'assets/'
+    if (cleanPhoto.includes('assets/')) {
+      return `${BASE_URL}/storage/${cleanPhoto}`;
+    }
+    
+    // Jika hanya nama file, tambahkan path lengkap
+    const fileName = cleanPhoto.split('/').pop();
+    return `${BASE_URL}/storage/assets/maintenance-assets/${fileName}`;
+  };
+
   // Fetch maintenance data
   const fetchMaintenanceData = async () => {
     try {
@@ -190,7 +220,7 @@ const ViewMaintenance = () => {
       
       if (err.response?.status === 404) {
         setTimeout(() => {
-          navigate("/maintenance");
+          navigate("/maintenance-assets");
         }, 3000);
       }
     } finally {
@@ -265,9 +295,7 @@ const ViewMaintenance = () => {
   const technician = maintenance.technician_user;
   const locationHierarchy = asset.location ? getLocationHierarchy(asset.location) : [];
   
-  const photoUrl = maintenance.photo?.startsWith('http') 
-    ? maintenance.photo 
-    : `http://localhost:8000/${maintenance.photo}`;
+  const photoUrl = getPhotoUrl();
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -331,17 +359,6 @@ const ViewMaintenance = () => {
                   <span>Dibuat: {formatDateTime(maintenance.created_at)}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  {/* <button
-                    onClick={() => window.print()}
-                    className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    <Printer className="w-4 h-4" />
-                    <span>Cetak</span>
-                  </button>
-                  <button className="flex items-center space-x-2 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
-                    <Download className="w-4 h-4" />
-                    <span>Export</span>
-                  </button> */}
                   <Link
                     to={`/maintenance-assets/update/${maintenance.id}`}
                     className="flex items-center space-x-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
@@ -398,7 +415,30 @@ const ViewMaintenance = () => {
                           alt={`Maintenance #${maintenance.id}`}
                           className="w-full h-64 object-cover"
                           onError={(e) => {
-                            e.target.src = "https://via.placeholder.com/800x400?text=Foto+Tidak+Tersedia";
+                            console.error("Error loading image:", photoUrl);
+                            
+                            // Coba beberapa alternatif path
+                            const fileName = maintenance.photo.split('/').pop();
+                            const possiblePaths = [
+                              `${BASE_URL}/storage/assets/maintenance-assets/${fileName}`,
+                              `${BASE_URL}/storage/assets/${fileName}`,
+                              `${BASE_URL}/assets/maintenance-assets/${fileName}`,
+                              `${BASE_URL}/assets/${fileName}`,
+                              `${BASE_URL}/storage/${fileName}`,
+                            ];
+                            
+                            // Coba path berikutnya
+                            const currentSrc = e.target.src;
+                            const nextPath = possiblePaths.find(p => p !== currentSrc);
+                            
+                            if (nextPath) {
+                              console.log("Trying alternative path:", nextPath);
+                              e.target.src = nextPath;
+                            } else {
+                              // Jika semua path gagal, tampilkan placeholder lokal
+                              console.log("All paths failed, showing local placeholder");
+                              e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='400' viewBox='0 0 800 400'%3E%3Crect width='800' height='400' fill='%23f1f5f9'/%3E%3Ctext x='400' y='200' font-family='Arial' font-size='24' fill='%2394a3b8' text-anchor='middle' dy='.3em'%3EFoto Tidak Tersedia%3C/text%3E%3C/svg%3E";
+                            }
                           }}
                         />
                       ) : (
@@ -406,11 +446,6 @@ const ViewMaintenance = () => {
                           <ImageIcon className="w-16 h-16 text-slate-400" />
                         </div>
                       )}
-                      <div className="absolute top-4 right-4">
-                        <button className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm hover:bg-white transition-colors">
-                          <Share2 className="w-4 h-4 text-slate-600" />
-                        </button>
-                      </div>
                     </div>
                   </div>
 
@@ -651,9 +686,10 @@ const ViewMaintenance = () => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         asset.status === 'available' ? 'bg-emerald-100 text-emerald-700' :
                         asset.status === 'in_use' ? 'bg-blue-100 text-blue-700' :
+                        asset.status === 'in_repair' ? 'bg-orange-100 text-orange-700' :
                         'bg-slate-100 text-slate-700'
                       }`}>
-                        {asset.status?.replace('_', ' ') || "N/A"}
+                        {asset.status?.replace(/_/g, ' ') || "N/A"}
                       </span>
                     </div>
                   </div>
